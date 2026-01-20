@@ -1,12 +1,13 @@
 import { useState, useCallback, useRef } from 'react';
 
-const API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY;
+const ELEVENLABS_API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY;
+const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 
-// ElevenLabs female voice IDs (Brazilian Portuguese)
+// ElevenLabs female voice IDs
 const VOICE_IDS = {
-  // Rachel - warm female voice, good for Portuguese
+  // Rachel - warm female voice
   rachel: '21m00Tcm4TlvDq8ikWAM',
-  // Charlotte - clear female voice
+  // Charlotte - clear female voice  
   charlotte: 'XB0fDUnXU5powFXDhCwa',
   // Bella - young female voice
   bella: 'EXAVITQu4vr4xnSDxMaL',
@@ -32,7 +33,7 @@ export function useElevenLabs() {
 
   // Text-to-Speech using ElevenLabs
   const speak = useCallback(async (text, onEnd) => {
-    if (!API_KEY) {
+    if (!ELEVENLABS_API_KEY) {
       setError('ElevenLabs API key não configurada');
       return;
     }
@@ -49,7 +50,7 @@ export function useElevenLabs() {
           headers: {
             'Accept': 'audio/mpeg',
             'Content-Type': 'application/json',
-            'xi-api-key': API_KEY,
+            'xi-api-key': ELEVENLABS_API_KEY,
           },
           body: JSON.stringify({
             text,
@@ -125,13 +126,18 @@ export function useElevenLabs() {
 
       // Start waveform animation
       const updateWaveform = () => {
-        if (!isRecording && !analyserRef.current) return;
+        if (!analyserRef.current) return;
         
-        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-        analyserRef.current.getByteFrequencyData(dataArray);
-        setAudioData([...dataArray]);
+        try {
+          const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+          analyserRef.current.getByteFrequencyData(dataArray);
+          setAudioData([...dataArray]);
+        } catch (e) {
+          // Analyser may have been closed
+          return;
+        }
         
-        if (isRecording) {
+        if (mediaRecorderRef.current?.state === 'recording') {
           requestAnimationFrame(updateWaveform);
         }
       };
@@ -186,28 +192,34 @@ export function useElevenLabs() {
           type: mediaRecorderRef.current.mimeType 
         });
 
-        // Transcribe using ElevenLabs STT
+        // Transcribe using OpenAI Whisper
         try {
           setIsLoading(true);
           
+          if (!OPENAI_API_KEY) {
+            throw new Error('OpenAI API key não configurada');
+          }
+          
           const formData = new FormData();
-          formData.append('audio', audioBlob, 'recording.webm');
-          formData.append('model_id', 'scribe_v1');
-          formData.append('language_code', 'por'); // Portuguese
+          formData.append('file', audioBlob, 'recording.webm');
+          formData.append('model', 'whisper-1');
+          formData.append('language', 'pt'); // Portuguese
+          formData.append('response_format', 'json');
 
           const response = await fetch(
-            'https://api.elevenlabs.io/v1/speech-to-text',
+            'https://api.openai.com/v1/audio/transcriptions',
             {
               method: 'POST',
               headers: {
-                'xi-api-key': API_KEY,
+                'Authorization': `Bearer ${OPENAI_API_KEY}`,
               },
               body: formData,
             }
           );
 
           if (!response.ok) {
-            throw new Error(`ElevenLabs STT error: ${response.status}`);
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`OpenAI Whisper error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
           }
 
           const result = await response.json();
@@ -215,6 +227,7 @@ export function useElevenLabs() {
           setTranscript(transcribedText);
           resolve(transcribedText);
         } catch (err) {
+          console.error('Transcription error:', err);
           setError('Erro na transcrição: ' + err.message);
           resolve('');
         } finally {
@@ -254,7 +267,7 @@ export function useElevenLabs() {
     clearError,
     
     // Check if API is available
-    isAvailable: !!API_KEY,
+    isAvailable: !!ELEVENLABS_API_KEY && !!OPENAI_API_KEY,
   };
 }
 
