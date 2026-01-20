@@ -1,0 +1,31 @@
+{
+  "pfmea_id": "PFMEA-PU-TAPETES-010",
+  "revisao": "41",
+  "processo": "Injeção de PU",
+  "modo_falha": "Bolhas no material",
+  "efeito": "Aparência ligeiramente desagradável / seleção requerida",
+  "causas_conhecidas": [
+    {
+      "causa_id": "C01",
+      "descricao": "Frequência do agitador fora do especificado, incorporando ar no material",
+      "variaveis_relacionadas": ["Frequência do Agitador"],
+      "controles_atuais": ["Leitura do parâmetro no IHM (set-up início turno)", "Instrução de Operação / manutenção preventiva"]
+    },
+    {
+      "causa_id": "C02",
+      "descricao": "Pressão de injeção fora do especificado durante o processo",
+      "variaveis_relacionadas": ["Pressão de Injeção"],
+      "controles_atuais": ["CLP com alerta sonoro/visual", "Instrução do operador / manutenção preventiva"]
+    },
+    {
+      "causa_id": "C03",
+      "descricao": "Umidade da matéria-prima (percepção operacional recorrente)",
+      "variaveis_relacionadas": ["(sem sensor direto na POC)"],
+      "controles_atuais": ["(não padronizado na POC)"]
+    }
+  ],
+  "severidade": 7,
+  "ocorrencia": 5,
+  "deteccao": 2,
+  "observacoes": "POC focada em capturar percepção do operador e ligar ao histórico do modo de falha."
+}

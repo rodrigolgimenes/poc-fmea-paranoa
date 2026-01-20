@@ -1,0 +1,67 @@
+{
+  "modo_falha": "Bolhas no material",
+  "periodo": "últimos 30 dias",
+  "clusters": [
+    {
+      "cluster_id": "C1",
+      "rotulo": "Umidade / Viscosidade",
+      "sinais": ["viscosidade", "bolha_visivel"],
+      "causas_associadas": ["umidade_materia_prima"],
+      "qtd_registros": 9
+    },
+    {
+      "cluster_id": "C2",
+      "rotulo": "Ar incorporado / Agitador",
+      "sinais": ["som_agitador", "viscosidade"],
+      "causas_associadas": ["ar_incorporado", "frequencia_agitador_fora"],
+      "qtd_registros": 6
+    },
+    {
+      "cluster_id": "C3",
+      "rotulo": "Mudança de insumo / Setup",
+      "sinais": ["brilho_aparencia", "viscosidade"],
+      "causas_associadas": ["materia_prima_diferente", "setup_recente"],
+      "qtd_registros": 4
+    }
+  ],
+  "recomendacao_causa_provavel": {
+    "causa": "umidade_materia_prima",
+    "confianca": 0.72,
+    "explicacao_curta": [
+      "Em 7 dos últimos 10 registros com sinais similares, a causa percebida foi umidade.",
+      "Sinais mais associados: viscosidade + bolha visível."
+    ]
+  },
+  "atualizacao_assistida_pfmea": {
+    "status": "sugestao_pronta",
+    "diff_texto": [
+      "Adicionar ao PFMEA (Bolhas): 'Umidade da matéria-prima' como causa recorrente percebida pelo operador.",
+      "Adicionar controle sugerido: 'Checagem de umidade / condição do insumo antes do início do turno (quando disponível)'",
+      "Adicionar ação recomendada: 'Padronizar faixa alvo de frequência do agitador e procedimento de ajuste rápido em tendência.'"
+    ],
+    "acao_mock": "Aprovar sugestão (mock)"
+  },
+  "knowledge_graph": {
+    "nodes": [
+      {"id": "MF_bolhas", "type": "modo_falha", "label": "Bolhas no material"},
+      {"id": "S_som", "type": "sinal", "label": "Som do agitador"},
+      {"id": "S_visc", "type": "sinal", "label": "Viscosidade"},
+      {"id": "S_bolha", "type": "sinal", "label": "Bolha visível"},
+      {"id": "C_umid", "type": "causa", "label": "Umidade matéria-prima"},
+      {"id": "C_ar", "type": "causa", "label": "Ar incorporado"},
+      {"id": "C_press", "type": "causa", "label": "Pressão de injeção"},
+      {"id": "A_agit", "type": "acao", "label": "Ajustar frequência agitador"},
+      {"id": "A_press", "type": "acao", "label": "Reduzir pressão"}
+    ],
+    "edges": [
+      {"from": "S_som", "to": "MF_bolhas", "weight": 12},
+      {"from": "S_visc", "to": "MF_bolhas", "weight": 10},
+      {"from": "S_bolha", "to": "MF_bolhas", "weight": 8},
+      {"from": "C_umid", "to": "MF_bolhas", "weight": 9},
+      {"from": "C_ar", "to": "MF_bolhas", "weight": 6},
+      {"from": "C_press", "to": "MF_bolhas", "weight": 4},
+      {"from": "A_agit", "to": "MF_bolhas", "weight": 7},
+      {"from": "A_press", "to": "MF_bolhas", "weight": 5}
+    ]
+  }
+}
