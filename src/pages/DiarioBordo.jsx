@@ -4,7 +4,7 @@ import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { useCamera } from '../hooks/useCamera';
 import { criarEvento, uploadMidia, finalizarEvento } from '../services/diarioRefugoService';
 import { transcreverAudio } from '../services/transcricaoService';
-import AudioWaveform from '../components/AudioWaveform';
+import AudioLevelMeter from '../components/AudioWaveform';
 
 // Audio recorder component
 function AudioInput({ 
@@ -12,7 +12,9 @@ function AudioInput({
   audioUrl, 
   isRecording, 
   formattedDuration,
-  audioData,
+  audioLevel,
+  peakLevel,
+  isClipping,
   onStartRecording, 
   onStopRecording, 
   onClear,
@@ -52,35 +54,42 @@ function AudioInput({
         )}
       </div>
 
-      {/* Recording indicator */}
+      {/* Recording indicator com VU Meter */}
       {isRecording && (
         <div style={{ 
           display: 'flex', 
           flexDirection: 'column', 
-          alignItems: 'center',
           gap: '12px',
-          padding: '16px',
-          background: 'rgba(230, 57, 70, 0.1)',
-          borderRadius: '8px',
           marginBottom: '12px',
         }}>
-          <AudioWaveform audioData={audioData} isRecording={isRecording} height={60} barCount={30} />
+          {/* VU Meter */}
+          <AudioLevelMeter 
+            audioLevel={audioLevel} 
+            peakLevel={peakLevel}
+            isClipping={isClipping}
+            isRecording={isRecording} 
+            height={50} 
+            barCount={20} 
+          />
+          
+          {/* Timer */}
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
+            justifyContent: 'center',
             gap: '8px',
-            fontSize: '20px',
+            fontSize: '18px',
             fontWeight: '600',
             color: 'var(--color-danger)',
           }}>
-            <span className="recording-dot" style={{
-              width: '12px',
-              height: '12px',
+            <span style={{
+              width: '10px',
+              height: '10px',
               borderRadius: '50%',
               background: 'var(--color-danger)',
               animation: 'pulse 1s infinite',
             }} />
-            🎙️ Gravando... {formattedDuration}
+            Gravando {formattedDuration}
           </div>
         </div>
       )}
@@ -482,7 +491,9 @@ export default function DiarioBordo() {
           audioUrl={audioDetalhe.audioUrl}
           isRecording={audioDetalhe.isRecording}
           formattedDuration={audioDetalhe.formattedDuration}
-          audioData={audioDetalhe.audioData}
+          audioLevel={audioDetalhe.audioLevel}
+          peakLevel={audioDetalhe.peakLevel}
+          isClipping={audioDetalhe.isClipping}
           onStartRecording={audioDetalhe.startRecording}
           onStopRecording={audioDetalhe.stopRecording}
           onClear={audioDetalhe.clearRecording}
@@ -494,7 +505,9 @@ export default function DiarioBordo() {
           audioUrl={audioObservacao.audioUrl}
           isRecording={audioObservacao.isRecording}
           formattedDuration={audioObservacao.formattedDuration}
-          audioData={audioObservacao.audioData}
+          audioLevel={audioObservacao.audioLevel}
+          peakLevel={audioObservacao.peakLevel}
+          isClipping={audioObservacao.isClipping}
           onStartRecording={audioObservacao.startRecording}
           onStopRecording={audioObservacao.stopRecording}
           onClear={audioObservacao.clearRecording}

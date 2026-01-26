@@ -1,7 +1,13 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
+// Configurações do medidor de nível
+const SILENCE_THRESHOLD = 0.01; // Abaixo disso é considerado silêncio
+const SMOOTHING_FACTOR = 0.3;   // Suavização do movimento (0-1, maior = mais suave)
+const UPDATE_INTERVAL_MS = 50;  // ~20 FPS para economia de CPU
+
 /**
- * Hook para gravação de áudio com visualização de waveform
+ * Hook para gravação de áudio com medidor de nível (VU Meter)
+ * Calcula RMS (Root Mean Square) para intensidade real do áudio
  */
 export function useAudioRecorder() {
   const [isRecording, setIsRecording] = useState(false);
@@ -10,7 +16,11 @@ export function useAudioRecorder() {
   const [audioUrl, setAudioUrl] = useState(null);
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState(null);
-  const [audioData, setAudioData] = useState(new Uint8Array(0));
+  
+  // Dados do medidor de nível (VU Meter)
+  const [audioLevel, setAudioLevel] = useState(0);     // Nível RMS normalizado (0-1)
+  const [peakLevel, setPeakLevel] = useState(0);       // Pico máximo recente
+  const [isClipping, setIsClipping] = useState(false); // Indicador de clipping
   
   const mediaRecorderRef = useRef(null);
   const audioContextRef = useRef(null);
@@ -19,6 +29,9 @@ export function useAudioRecorder() {
   const chunksRef = useRef([]);
   const startTimeRef = useRef(null);
   const animationFrameRef = useRef(null);
+  const smoothedLevelRef = useRef(0);
+  const peakHoldRef = useRef(0);
+  const peakDecayTimeRef = useRef(0);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -51,15 +64,63 @@ export function useAudioRecorder() {
     return () => clearInterval(intervalId);
   }, [isRecording, isPaused]);
 
-  // Visualize audio data
-  const visualize = useCallback(() => {
+  // Calcular nível RMS do áudio (medidor de intensidade real)
+  const measureAudioLevel = useCallback(() => {
     if (!analyserRef.current || !isRecording) return;
     
-    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-    analyserRef.current.getByteFrequencyData(dataArray);
-    setAudioData(dataArray);
+    const bufferLength = analyserRef.current.fftSize;
+    const dataArray = new Float32Array(bufferLength);
+    analyserRef.current.getFloatTimeDomainData(dataArray);
     
-    animationFrameRef.current = requestAnimationFrame(visualize);
+    // Calcular RMS (Root Mean Square) - métrica padrão para volume de áudio
+    let sumSquares = 0;
+    let peak = 0;
+    for (let i = 0; i < bufferLength; i++) {
+      const sample = dataArray[i];
+      sumSquares += sample * sample;
+      const absSample = Math.abs(sample);
+      if (absSample > peak) peak = absSample;
+    }
+    const rms = Math.sqrt(sumSquares / bufferLength);
+    
+    // Normalizar para 0-1 (RMS tipicamente fica entre 0 e ~0.5 para áudio normal)
+    const normalizedRms = Math.min(1, rms * 3);
+    
+    // Aplicar threshold de silêncio
+    const finalLevel = normalizedRms < SILENCE_THRESHOLD ? 0 : normalizedRms;
+    
+    // Smoothing: suavizar transições para evitar tremores
+    // Subida rápida, descida suave
+    if (finalLevel > smoothedLevelRef.current) {
+      smoothedLevelRef.current = finalLevel; // Subida instantânea
+    } else {
+      smoothedLevelRef.current = smoothedLevelRef.current * (1 - SMOOTHING_FACTOR) + finalLevel * SMOOTHING_FACTOR;
+    }
+    
+    // Se abaixo do threshold após smoothing, zerar
+    if (smoothedLevelRef.current < SILENCE_THRESHOLD) {
+      smoothedLevelRef.current = 0;
+    }
+    
+    setAudioLevel(smoothedLevelRef.current);
+    
+    // Peak hold com decay (pico cai lentamente)
+    if (peak > peakHoldRef.current) {
+      peakHoldRef.current = peak;
+      peakDecayTimeRef.current = Date.now();
+    } else if (Date.now() - peakDecayTimeRef.current > 1000) {
+      // Decay do pico após 1 segundo
+      peakHoldRef.current *= 0.95;
+    }
+    setPeakLevel(Math.min(1, peakHoldRef.current * 2));
+    
+    // Detectar clipping (>95% do máximo)
+    setIsClipping(peak > 0.95);
+    
+    // Continuar medindo
+    animationFrameRef.current = setTimeout(() => {
+      requestAnimationFrame(measureAudioLevel);
+    }, UPDATE_INTERVAL_MS);
   }, [isRecording]);
 
   const startRecording = useCallback(async () => {
@@ -77,13 +138,18 @@ export function useAudioRecorder() {
       });
       streamRef.current = stream;
       
-      // Setup audio context for visualization
+      // Setup audio context para medição de nível
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
       analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 256;
+      analyserRef.current.fftSize = 2048; // Maior precisão para RMS
+      analyserRef.current.smoothingTimeConstant = 0; // Sem smoothing do analyser (fazemos manual)
       
       const source = audioContextRef.current.createMediaStreamSource(stream);
       source.connect(analyserRef.current);
+      
+      // Reset dos valores de medidor
+      smoothedLevelRef.current = 0;
+      peakHoldRef.current = 0;
       
       // Setup MediaRecorder
       const mimeType = MediaRecorder.isTypeSupported('audio/webm') 
@@ -117,17 +183,18 @@ export function useAudioRecorder() {
       setIsPaused(false);
       setDuration(0);
       
-      // Start visualization
-      visualize();
+      // Iniciar medição de nível
+      measureAudioLevel();
       
     } catch (err) {
       console.error('Erro ao iniciar gravação:', err);
       setError(err.message || 'Não foi possível acessar o microfone');
     }
-  }, [audioUrl, visualize]);
+  }, [audioUrl, measureAudioLevel]);
 
   const stopRecording = useCallback(() => {
     if (animationFrameRef.current) {
+      clearTimeout(animationFrameRef.current);
       cancelAnimationFrame(animationFrameRef.current);
     }
     
@@ -147,7 +214,11 @@ export function useAudioRecorder() {
     
     setIsRecording(false);
     setIsPaused(false);
-    setAudioData(new Uint8Array(0));
+    setAudioLevel(0);
+    setPeakLevel(0);
+    setIsClipping(false);
+    smoothedLevelRef.current = 0;
+    peakHoldRef.current = 0;
   }, []);
 
   const pauseRecording = useCallback(() => {
@@ -188,7 +259,10 @@ export function useAudioRecorder() {
     duration,
     formattedDuration: formatDuration(duration),
     error,
-    audioData,
+    // Dados do medidor de nível (VU Meter)
+    audioLevel,   // Nível RMS normalizado (0-1)
+    peakLevel,    // Pico máximo recente (0-1)
+    isClipping,   // true se estiver estourando
     startRecording,
     stopRecording,
     pauseRecording,

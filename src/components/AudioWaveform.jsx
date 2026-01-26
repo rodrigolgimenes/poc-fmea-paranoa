@@ -1,125 +1,108 @@
-import { useState, useEffect, useRef } from 'react';
-
-// Altura minima das barras quando em silêncio
-const MIN_BAR_HEIGHT = 4;
-// Threshold para considerar que há som (ajuste conforme necessário)
-const SOUND_THRESHOLD = 15;
-
 /**
- * AudioWaveform - Visual feedback component for audio recording
- * Barras só se movem quando detecta som/voz do usuário (como equalizador real)
+ * AudioLevelMeter (VU Meter) - Medidor de nível de áudio em tempo real
+ * Exibe barras que representam a intensidade (RMS) do áudio captado
+ * 
+ * Comportamento:
+ * - Silêncio: barras estáticas no mínimo
+ * - Falando: barras sobem proporcionalmente ao volume
+ * - Clipping: indicador visual quando estourando
  */
-export default function AudioWaveform({ 
-  audioData, 
-  isRecording, 
-  barCount = 32,
-  height = 80,
-  barColor = 'var(--color-primary)',
-  activeColor = 'var(--color-success)'
+export default function AudioLevelMeter({ 
+  audioLevel = 0,      // Nível RMS normalizado (0-1)
+  peakLevel = 0,       // Nível de pico (0-1)
+  isClipping = false,  // Indicador de clipping
+  isRecording = false, // Se está gravando
+  barCount = 20,       // Número de barras
+  height = 60,         // Altura do componente
 }) {
-  const [bars, setBars] = useState(() => 
-    Array(barCount).fill(0).map(() => ({ height: MIN_BAR_HEIGHT, active: false }))
-  );
-  const animationRef = useRef(null);
-
-  // Process audio data into bar heights - reage apenas ao som real
-  useEffect(() => {
-    const updateBars = () => {
-      // Se não está gravando, mostrar barras mínimas estáticas
-      if (!isRecording) {
-        setBars(Array(barCount).fill(0).map(() => ({ 
-          height: MIN_BAR_HEIGHT, 
-          active: false 
-        })));
-        return;
-      }
-
-      // Se está gravando mas sem dados de áudio, mostrar barras mínimas
-      if (!audioData || audioData.length === 0) {
-        setBars(Array(barCount).fill(0).map(() => ({ 
-          height: MIN_BAR_HEIGHT, 
-          active: false 
-        })));
-        animationRef.current = requestAnimationFrame(updateBars);
-        return;
-      }
-
-      // Calcular volume médio para detectar se há som
-      let totalVolume = 0;
-      for (let i = 0; i < audioData.length; i++) {
-        totalVolume += audioData[i];
-      }
-      const avgVolume = totalVolume / audioData.length;
-      const hasSpeech = avgVolume > SOUND_THRESHOLD;
-
-      // Sample the audio data to match bar count
-      const step = Math.max(1, Math.floor(audioData.length / barCount));
-      const newBars = Array(barCount).fill(0).map((_, i) => {
-        const index = Math.min(i * step, audioData.length - 1);
-        const value = audioData[index] || 0;
-        
-        // Se não há fala detectada, manter barras mínimas
-        if (!hasSpeech) {
-          return {
-            height: MIN_BAR_HEIGHT,
-            active: false
-          };
-        }
-        
-        // Amplificar o valor para melhor visualização quando há som
-        const amplifiedValue = Math.min(255, value * 2);
-        const normalizedHeight = (amplifiedValue / 255) * height;
-        return {
-          height: Math.max(MIN_BAR_HEIGHT, normalizedHeight),
-          active: value > SOUND_THRESHOLD
-        };
-      });
-      setBars(newBars);
-      
-      // Continuar atualizando durante gravação
-      animationRef.current = requestAnimationFrame(updateBars);
-    };
-
-    updateBars();
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [audioData, isRecording, barCount, height]);
+  // Calcular quantas barras devem estar acesas
+  const activeBars = Math.round(audioLevel * barCount);
+  const peakBar = Math.round(peakLevel * barCount);
+  
+  // Cores das barras baseado na posição (verde -> amarelo -> vermelho)
+  const getBarColor = (index, isActive) => {
+    if (!isActive && index !== peakBar) return '#3a3a3a'; // Inativa
+    
+    const position = index / barCount;
+    if (position > 0.85) return '#e63946'; // Vermelho (zona de clipping)
+    if (position > 0.65) return '#f5a623'; // Amarelo (zona de atenção)
+    return '#4caf50'; // Verde (zona segura)
+  };
 
   return (
-    <div 
-      className="audio-waveform"
-      style={{
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      padding: '12px 16px',
+      background: '#2d2d2d',
+      borderRadius: '12px',
+      border: isClipping ? '2px solid #e63946' : '2px solid transparent',
+    }}>
+      {/* Indicador de clipping */}
+      {isClipping && (
+        <div style={{
+          textAlign: 'center',
+          color: '#e63946',
+          fontSize: '11px',
+          fontWeight: '700',
+          textTransform: 'uppercase',
+          letterSpacing: '1px',
+        }}>
+          ⚠️ VOLUME ALTO
+        </div>
+      )}
+      
+      {/* Barras do VU Meter */}
+      <div style={{
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-end',
         justifyContent: 'center',
         gap: '3px',
         height: `${height}px`,
-        padding: '16px',
-        background: 'var(--color-bg-input)',
-        borderRadius: '12px',
-        overflow: 'hidden'
-      }}
-    >
-      {bars.map((bar, index) => (
-        <div
-          key={index}
-          style={{
-            width: '6px',
-            height: `${bar.height}px`,
-            backgroundColor: bar.active ? activeColor : barColor,
-            borderRadius: '3px',
-            transition: isRecording ? 'height 0.05s ease' : 'height 0.3s ease',
-            opacity: isRecording ? 1 : 0.5
-          }}
-        />
-      ))}
+      }}>
+        {Array(barCount).fill(0).map((_, index) => {
+          const isActive = index < activeBars;
+          const isPeak = index === peakBar - 1 && peakBar > activeBars;
+          const barHeight = isRecording 
+            ? (isActive ? height * (0.3 + (index / barCount) * 0.7) : height * 0.15)
+            : height * 0.15;
+          
+          return (
+            <div
+              key={index}
+              style={{
+                width: '8px',
+                height: `${barHeight}px`,
+                backgroundColor: getBarColor(index, isActive || isPeak),
+                borderRadius: '2px',
+                transition: 'height 0.05s ease-out, background-color 0.1s ease',
+                opacity: isActive || isPeak ? 1 : 0.3,
+              }}
+            />
+          );
+        })}
+      </div>
+      
+      {/* Labels */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        fontSize: '10px',
+        color: '#666',
+      }}>
+        <span>BAIXO</span>
+        <span style={{ color: isRecording && audioLevel > 0 ? '#4caf50' : '#666' }}>
+          {isRecording ? (audioLevel > 0 ? '🎙️ Captando...' : '🎙️ Aguardando...') : '🎙️ Microfone'}
+        </span>
+        <span>ALTO</span>
+      </div>
     </div>
   );
 }
+
+// Manter export do nome antigo para compatibilidade
+export { AudioLevelMeter as AudioWaveform };
 
 /**
  * PulsingMic - Animated microphone button with pulse effect
