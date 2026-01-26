@@ -139,15 +139,24 @@ export async function uploadMidia(eventoId, arquivo, tipo, metadados = {}) {
 
 /**
  * Finaliza o evento (marca como SAVED)
+ * Nota: Só atualiza transcrições se forem explicitamente fornecidas
+ * para não sobrescrever valores já salvos pela Edge Function
  */
 export async function finalizarEvento(eventoId, transcricoes = {}) {
+  // Construir objeto de update apenas com campos que devem ser atualizados
+  const updateData = { status: 'SAVED' };
+  
+  // Só incluir transcrições se forem explicitamente fornecidas
+  if (transcricoes.detalhe !== undefined) {
+    updateData.transcricao_detalhe = transcricoes.detalhe;
+  }
+  if (transcricoes.observacao !== undefined) {
+    updateData.transcricao_observacao = transcricoes.observacao;
+  }
+
   const { data, error } = await supabase
     .from('dw_diario_refugo_evento')
-    .update({
-      status: 'SAVED',
-      transcricao_detalhe: transcricoes.detalhe || null,
-      transcricao_observacao: transcricoes.observacao || null,
-    })
+    .update(updateData)
     .eq('evento_id', eventoId)
     .select()
     .single();

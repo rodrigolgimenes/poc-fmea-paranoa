@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 /**
  * AudioWaveform - Visual feedback component for audio recording
@@ -12,27 +12,63 @@ export default function AudioWaveform({
   barColor = 'var(--color-primary)',
   activeColor = 'var(--color-success)'
 }) {
-  // Process audio data into bar heights
-  const bars = useMemo(() => {
-    if (!audioData || !isRecording) {
-      // Return idle animation bars
-      return Array(barCount).fill(0).map((_, i) => ({
-        height: 10 + Math.sin(Date.now() / 500 + i * 0.5) * 5,
-        active: false
-      }));
-    }
+  const [bars, setBars] = useState([]);
+  const animationRef = useRef(null);
+  const idlePhaseRef = useRef(0);
 
-    // Sample the audio data to match bar count
-    const step = Math.floor(audioData.length / barCount);
-    return Array(barCount).fill(0).map((_, i) => {
-      const index = i * step;
-      const value = audioData[index] || 0;
-      const normalizedHeight = (value / 255) * height;
-      return {
-        height: Math.max(4, normalizedHeight),
-        active: value > 50
-      };
-    });
+  // Process audio data into bar heights - atualiza continuamente durante gravação
+  useEffect(() => {
+    const updateBars = () => {
+      if (!isRecording) {
+        // Animação idle suave quando não está gravando
+        idlePhaseRef.current += 0.05;
+        const idleBars = Array(barCount).fill(0).map((_, i) => ({
+          height: 8 + Math.sin(idlePhaseRef.current + i * 0.3) * 4,
+          active: false
+        }));
+        setBars(idleBars);
+        animationRef.current = requestAnimationFrame(updateBars);
+        return;
+      }
+
+      if (!audioData || audioData.length === 0) {
+        // Gravando mas sem dados ainda - mostrar barras pulsando
+        idlePhaseRef.current += 0.1;
+        const waitingBars = Array(barCount).fill(0).map((_, i) => ({
+          height: 10 + Math.sin(idlePhaseRef.current + i * 0.2) * 6,
+          active: true
+        }));
+        setBars(waitingBars);
+        animationRef.current = requestAnimationFrame(updateBars);
+        return;
+      }
+
+      // Sample the audio data to match bar count
+      const step = Math.max(1, Math.floor(audioData.length / barCount));
+      const newBars = Array(barCount).fill(0).map((_, i) => {
+        const index = Math.min(i * step, audioData.length - 1);
+        const value = audioData[index] || 0;
+        // Amplificar o valor para melhor visualização
+        const amplifiedValue = Math.min(255, value * 1.5);
+        const normalizedHeight = (amplifiedValue / 255) * height;
+        return {
+          height: Math.max(6, normalizedHeight),
+          active: value > 30
+        };
+      });
+      setBars(newBars);
+      
+      // Continuar atualizando durante gravação
+      animationRef.current = requestAnimationFrame(updateBars);
+    };
+
+    updateBars();
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
   }, [audioData, isRecording, barCount, height]);
 
   return (

@@ -62,28 +62,31 @@ export default function LerEtiqueta() {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      height: '100vh',
+      maxHeight: '100vh',
       background: '#1a1a1a',
       display: 'flex',
       flexDirection: 'column',
+      overflow: 'hidden',
     }}>
       {/* Header */}
       <header style={{
-        padding: '16px 24px',
+        padding: '12px 16px',
         background: '#000',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
+        flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <img src="/logo_dw.png" alt="DataWake" style={{ height: 32 }} onError={(e) => { e.currentTarget.style.display='none'; }} />
-          <span style={{ fontSize: 13, color: '#888' }}>Diário de Bordo</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <img src="/logo_dw.png" alt="DataWake" style={{ height: 28 }} onError={(e) => { e.currentTarget.style.display='none'; }} />
+          <span style={{ fontSize: 12, color: '#888' }}>Diário de Bordo</span>
         </div>
         <div style={{
           background: '#242424',
-          padding: '8px 16px',
+          padding: '6px 12px',
           borderRadius: '6px',
-          fontSize: '13px',
+          fontSize: '11px',
           color: '#888',
           border: '1px solid #3a3a3a',
         }}>
@@ -91,30 +94,30 @@ export default function LerEtiqueta() {
         </div>
       </header>
 
-      <div style={{ flex: 1, padding: '24px', overflow: 'auto' }}>
+      <div style={{ flex: 1, padding: '16px', overflow: 'auto', minHeight: 0 }}>
         {/* Input Card */}
         <div style={{
           background: '#242424',
           borderRadius: '12px',
-          padding: '24px',
-          marginBottom: '16px',
+          padding: '16px',
+          marginBottom: '12px',
           border: '1px solid #3a3a3a',
         }}>
           <h3 style={{ 
-            fontSize: '18px', 
+            fontSize: '16px', 
             fontWeight: '600', 
             color: '#fff',
-            marginBottom: '20px',
+            marginBottom: '12px',
           }}>
             🏷️ Ler Etiqueta
           </h3>
           
-          <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: '12px' }}>
             <label style={{ 
               display: 'block',
-              fontSize: '14px',
+              fontSize: '13px',
               color: '#888',
-              marginBottom: '8px',
+              marginBottom: '6px',
             }}>Código da Etiqueta</label>
             <input
               ref={inputRef}
@@ -125,10 +128,10 @@ export default function LerEtiqueta() {
               onKeyDown={handleKeyDown}
               style={{ 
                 width: '100%',
-                fontSize: '24px', 
-                padding: '20px',
+                fontSize: '20px', 
+                padding: '14px',
                 textAlign: 'center',
-                letterSpacing: '3px',
+                letterSpacing: '2px',
                 fontWeight: '700',
                 background: '#2d2d2d',
                 border: '2px solid #3a3a3a',
@@ -140,9 +143,9 @@ export default function LerEtiqueta() {
               autoCapitalize="characters"
             />
             <p style={{ 
-              fontSize: '12px', 
+              fontSize: '11px', 
               color: '#666', 
-              marginTop: '8px',
+              marginTop: '6px',
               textAlign: 'center' 
             }}>
               Use o leitor de código de barras ou digite manualmente
@@ -154,8 +157,8 @@ export default function LerEtiqueta() {
             disabled={isLoading || !etiqueta.trim()}
             style={{ 
               width: '100%',
-              padding: '18px',
-              fontSize: '18px',
+              padding: '14px',
+              fontSize: '16px',
               fontWeight: '700',
               background: isLoading || !etiqueta.trim() ? '#3a3a3a' : '#f5a623',
               color: isLoading || !etiqueta.trim() ? '#666' : '#1a1a1a',
@@ -196,10 +199,11 @@ export default function LerEtiqueta() {
           <div className="card" style={{ 
             background: 'rgba(72, 202, 228, 0.1)', 
             borderLeft: '4px solid var(--color-info)',
+            padding: '12px',
           }}>
-            <div style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>
-              <p style={{ marginBottom: '8px' }}>💡 <strong>Dica:</strong></p>
-              <ul style={{ margin: 0, paddingLeft: '20px' }}>
+            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
+              <p style={{ marginBottom: '6px' }}>💡 <strong>Dica:</strong></p>
+              <ul style={{ margin: 0, paddingLeft: '16px', lineHeight: '1.4' }}>
                 <li>Posicione o código de barras na frente do leitor</li>
                 <li>A etiqueta será lida automaticamente</li>
                 <li>Etiquetas de teste: {['0002509836', '0002502834', '0002502789'].map((tag, i) => (
@@ -216,15 +220,15 @@ export default function LerEtiqueta() {
                 onClick={() => handleUsarExemplo('0002509836')}
                 disabled={isLoading}
                 style={{
-                  marginTop: '12px',
-                  padding: '10px 16px',
+                  marginTop: '10px',
+                  padding: '8px 14px',
                   background: isLoading ? '#3a3a3a' : '#f5a623',
                   color: isLoading ? '#666' : '#1a1a1a',
                   border: 'none',
                   borderRadius: '6px',
                   cursor: isLoading ? 'not-allowed' : 'pointer',
                   fontWeight: '600',
-                  fontSize: '14px',
+                  fontSize: '13px',
                 }}
               >
                 🚀 Usar Etiqueta 0002509836 como exemplo
@@ -234,11 +238,26 @@ export default function LerEtiqueta() {
         )}
       </div>
 
-      {/* Bottom navigation */}
-      <div className="bottom-bar">
+      {/* Bottom navigation - fixo no rodapé */}
+      <div style={{
+        flexShrink: 0,
+        padding: '12px 16px',
+        background: '#242424',
+        borderTop: '1px solid #3a3a3a',
+      }}>
         <button 
-          className="btn btn-secondary"
           onClick={() => navigate('/consulta')}
+          style={{
+            width: '100%',
+            padding: '14px',
+            fontSize: '15px',
+            fontWeight: '600',
+            background: '#2d2d2d',
+            color: '#fff',
+            border: '1px solid #3a3a3a',
+            borderRadius: '8px',
+            cursor: 'pointer',
+          }}
         >
           📋 Consultar Registros
         </button>
