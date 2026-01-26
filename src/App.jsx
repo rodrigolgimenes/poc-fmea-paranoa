@@ -1,20 +1,24 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AppProvider } from './context/AppContext';
-import { Monitor, Registro, Confirmacao, FmeaAprendendo } from './pages';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { 
+  LerEtiqueta,
+  DiarioBordo,
+  DiarioConfirmacao,
+  ConsultaRegistros,
+} from './pages';
+
+const BASE_PATH = '/poc-fmea-paranoa';
 
 function App() {
   return (
-    <AppProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Navigate to="/monitor" replace />} />
-          <Route path="/monitor" element={<Monitor />} />
-          <Route path="/registro/:eventId" element={<Registro />} />
-          <Route path="/confirmacao/:registroId" element={<Confirmacao />} />
-          <Route path="/fmea-aprendendo" element={<FmeaAprendendo />} />
-        </Routes>
-      </BrowserRouter>
-    </AppProvider>
+    <BrowserRouter basename={BASE_PATH}>
+      <Routes>
+        {/* Diário de Bordo */}
+        <Route path="/" element={<LerEtiqueta />} />
+        <Route path="/diario-bordo" element={<DiarioBordo />} />
+        <Route path="/diario-confirmacao" element={<DiarioConfirmacao />} />
+        <Route path="/consulta" element={<ConsultaRegistros />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

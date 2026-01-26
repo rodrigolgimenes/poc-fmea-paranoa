@@ -1,4 +1,5 @@
-export { default as Monitor } from './Monitor';
-export { default as Registro } from './Registro';
-export { default as Confirmacao } from './Confirmacao';
-export { default as FmeaAprendendo } from './FmeaAprendendo';
+// Diário de Bordo
+export { default as LerEtiqueta } from './LerEtiqueta';
+export { default as DiarioBordo } from './DiarioBordo';
+export { default as DiarioConfirmacao } from './DiarioConfirmacao';
+export { default as ConsultaRegistros } from './ConsultaRegistros';
