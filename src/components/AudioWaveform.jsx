@@ -1,8 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 
+// Altura minima das barras quando em silêncio
+const MIN_BAR_HEIGHT = 4;
+// Threshold para considerar que há som (ajuste conforme necessário)
+const SOUND_THRESHOLD = 15;
+
 /**
  * AudioWaveform - Visual feedback component for audio recording
- * Displays animated bars based on audio frequency data
+ * Barras só se movem quando detecta som/voz do usuário (como equalizador real)
  */
 export default function AudioWaveform({ 
   audioData, 
@@ -12,48 +17,61 @@ export default function AudioWaveform({
   barColor = 'var(--color-primary)',
   activeColor = 'var(--color-success)'
 }) {
-  const [bars, setBars] = useState([]);
+  const [bars, setBars] = useState(() => 
+    Array(barCount).fill(0).map(() => ({ height: MIN_BAR_HEIGHT, active: false }))
+  );
   const animationRef = useRef(null);
-  const idlePhaseRef = useRef(0);
 
-  // Process audio data into bar heights - atualiza continuamente durante gravação
+  // Process audio data into bar heights - reage apenas ao som real
   useEffect(() => {
     const updateBars = () => {
+      // Se não está gravando, mostrar barras mínimas estáticas
       if (!isRecording) {
-        // Animação idle suave quando não está gravando
-        idlePhaseRef.current += 0.05;
-        const idleBars = Array(barCount).fill(0).map((_, i) => ({
-          height: 8 + Math.sin(idlePhaseRef.current + i * 0.3) * 4,
-          active: false
-        }));
-        setBars(idleBars);
+        setBars(Array(barCount).fill(0).map(() => ({ 
+          height: MIN_BAR_HEIGHT, 
+          active: false 
+        })));
+        return;
+      }
+
+      // Se está gravando mas sem dados de áudio, mostrar barras mínimas
+      if (!audioData || audioData.length === 0) {
+        setBars(Array(barCount).fill(0).map(() => ({ 
+          height: MIN_BAR_HEIGHT, 
+          active: false 
+        })));
         animationRef.current = requestAnimationFrame(updateBars);
         return;
       }
 
-      if (!audioData || audioData.length === 0) {
-        // Gravando mas sem dados ainda - mostrar barras pulsando
-        idlePhaseRef.current += 0.1;
-        const waitingBars = Array(barCount).fill(0).map((_, i) => ({
-          height: 10 + Math.sin(idlePhaseRef.current + i * 0.2) * 6,
-          active: true
-        }));
-        setBars(waitingBars);
-        animationRef.current = requestAnimationFrame(updateBars);
-        return;
+      // Calcular volume médio para detectar se há som
+      let totalVolume = 0;
+      for (let i = 0; i < audioData.length; i++) {
+        totalVolume += audioData[i];
       }
+      const avgVolume = totalVolume / audioData.length;
+      const hasSpeech = avgVolume > SOUND_THRESHOLD;
 
       // Sample the audio data to match bar count
       const step = Math.max(1, Math.floor(audioData.length / barCount));
       const newBars = Array(barCount).fill(0).map((_, i) => {
         const index = Math.min(i * step, audioData.length - 1);
         const value = audioData[index] || 0;
-        // Amplificar o valor para melhor visualização
-        const amplifiedValue = Math.min(255, value * 1.5);
+        
+        // Se não há fala detectada, manter barras mínimas
+        if (!hasSpeech) {
+          return {
+            height: MIN_BAR_HEIGHT,
+            active: false
+          };
+        }
+        
+        // Amplificar o valor para melhor visualização quando há som
+        const amplifiedValue = Math.min(255, value * 2);
         const normalizedHeight = (amplifiedValue / 255) * height;
         return {
-          height: Math.max(6, normalizedHeight),
-          active: value > 30
+          height: Math.max(MIN_BAR_HEIGHT, normalizedHeight),
+          active: value > SOUND_THRESHOLD
         };
       });
       setBars(newBars);
