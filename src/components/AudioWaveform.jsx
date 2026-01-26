@@ -1,33 +1,108 @@
+import { useEffect, useRef, useState } from 'react';
+
 /**
- * AudioLevelMeter (VU Meter) - Medidor de nível de áudio em tempo real
- * Exibe barras que representam a intensidade (RMS) do áudio captado
- * 
- * Comportamento:
- * - Silêncio: barras estáticas no mínimo
- * - Falando: barras sobem proporcionalmente ao volume
- * - Clipping: indicador visual quando estourando
+ * AudioLevelMeter - Medidor de nível de áudio em tempo real
+ * Recebe o MediaStream diretamente e cria seu próprio analyser
+ * Baseado na implementação do InsightScribe
  */
 export default function AudioLevelMeter({ 
-  audioLevel = 0,      // Nível RMS normalizado (0-1)
-  peakLevel = 0,       // Nível de pico (0-1)
-  isClipping = false,  // Indicador de clipping
+  stream = null,       // MediaStream do microfone
   isRecording = false, // Se está gravando
-  barCount = 20,       // Número de barras
+  barCount = 24,       // Número de barras
   height = 60,         // Altura do componente
 }) {
-  // Calcular quantas barras devem estar acesas
-  const activeBars = Math.round(audioLevel * barCount);
-  const peakBar = Math.round(peakLevel * barCount);
-  
-  // Cores das barras baseado na posição (verde -> amarelo -> vermelho)
-  const getBarColor = (index, isActive) => {
-    if (!isActive && index !== peakBar) return '#3a3a3a'; // Inativa
-    
-    const position = index / barCount;
-    if (position > 0.85) return '#e63946'; // Vermelho (zona de clipping)
-    if (position > 0.65) return '#f5a623'; // Amarelo (zona de atenção)
-    return '#4caf50'; // Verde (zona segura)
-  };
+  const [levels, setLevels] = useState(() => Array(barCount).fill(0));
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const animationRef = useRef(null);
+  const smoothedLevelsRef = useRef(Array(barCount).fill(0));
+
+  useEffect(() => {
+    // Se não está gravando ou não tem stream, mostrar barras zeradas
+    if (!isRecording || !stream) {
+      setLevels(Array(barCount).fill(0));
+      return;
+    }
+
+    // Verificar se o stream tem tracks de áudio
+    if (!stream.getAudioTracks || stream.getAudioTracks().length === 0) {
+      console.warn('[AudioLevelMeter] Stream sem tracks de áudio');
+      return;
+    }
+
+    console.log('[AudioLevelMeter] Configurando analyser com stream');
+
+    try {
+      // Criar AudioContext
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      audioContextRef.current = new AudioContextClass();
+      
+      // Criar analyser
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      analyserRef.current.fftSize = 256;
+      analyserRef.current.smoothingTimeConstant = 0.4;
+      
+      // Conectar stream ao analyser
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+      source.connect(analyserRef.current);
+      
+      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+      
+      // Função de atualização
+      const updateLevels = () => {
+        if (!analyserRef.current) return;
+        
+        analyserRef.current.getByteFrequencyData(dataArray);
+        
+        // Dividir frequências em barCount grupos
+        const step = Math.floor(dataArray.length / barCount);
+        const newLevels = [];
+        
+        for (let i = 0; i < barCount; i++) {
+          // Pegar média do grupo de frequências
+          let sum = 0;
+          for (let j = 0; j < step; j++) {
+            sum += dataArray[i * step + j] || 0;
+          }
+          const avg = sum / step;
+          const normalized = avg / 255;
+          
+          // Smoothing: subida rápida, descida suave
+          const prev = smoothedLevelsRef.current[i] || 0;
+          const smoothed = normalized > prev 
+            ? normalized 
+            : prev * 0.85 + normalized * 0.15;
+          
+          smoothedLevelsRef.current[i] = smoothed;
+          newLevels.push(smoothed);
+        }
+        
+        setLevels(newLevels);
+        animationRef.current = requestAnimationFrame(updateLevels);
+      };
+      
+      updateLevels();
+      
+    } catch (error) {
+      console.error('[AudioLevelMeter] Erro ao configurar:', error);
+    }
+
+    // Cleanup
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close();
+      }
+      smoothedLevelsRef.current = Array(barCount).fill(0);
+    };
+  }, [stream, isRecording, barCount]);
+
+  // Calcular se há som sendo captado
+  const hasSound = levels.some(l => l > 0.05);
+  const maxLevel = Math.max(...levels);
+  const isClipping = maxLevel > 0.95;
 
   return (
     <div style={{
@@ -46,62 +121,62 @@ export default function AudioLevelMeter({
           color: '#e63946',
           fontSize: '11px',
           fontWeight: '700',
-          textTransform: 'uppercase',
-          letterSpacing: '1px',
         }}>
           ⚠️ VOLUME ALTO
         </div>
       )}
       
-      {/* Barras do VU Meter */}
+      {/* Barras do medidor */}
       <div style={{
         display: 'flex',
         alignItems: 'flex-end',
         justifyContent: 'center',
-        gap: '3px',
+        gap: '2px',
         height: `${height}px`,
       }}>
-        {Array(barCount).fill(0).map((_, index) => {
-          const isActive = index < activeBars;
-          const isPeak = index === peakBar - 1 && peakBar > activeBars;
-          const barHeight = isRecording 
-            ? (isActive ? height * (0.3 + (index / barCount) * 0.7) : height * 0.15)
-            : height * 0.15;
+        {levels.map((level, index) => {
+          const barHeight = Math.max(4, level * height);
+          const position = index / barCount;
+          
+          // Cor baseada no nível
+          let color = '#3a3a3a';
+          if (level > 0.05) {
+            if (level > 0.85) color = '#e63946'; // Vermelho
+            else if (level > 0.6) color = '#f5a623'; // Amarelo
+            else color = '#4caf50'; // Verde
+          }
           
           return (
             <div
               key={index}
               style={{
-                width: '8px',
+                width: '6px',
                 height: `${barHeight}px`,
-                backgroundColor: getBarColor(index, isActive || isPeak),
+                backgroundColor: color,
                 borderRadius: '2px',
-                transition: 'height 0.05s ease-out, background-color 0.1s ease',
-                opacity: isActive || isPeak ? 1 : 0.3,
+                transition: 'height 0.05s ease-out',
               }}
             />
           );
         })}
       </div>
       
-      {/* Labels */}
+      {/* Status */}
       <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        fontSize: '10px',
-        color: '#666',
+        textAlign: 'center',
+        fontSize: '11px',
+        color: hasSound ? '#4caf50' : '#666',
       }}>
-        <span>BAIXO</span>
-        <span style={{ color: isRecording && audioLevel > 0 ? '#4caf50' : '#666' }}>
-          {isRecording ? (audioLevel > 0 ? '🎙️ Captando...' : '🎙️ Aguardando...') : '🎙️ Microfone'}
-        </span>
-        <span>ALTO</span>
+        {isRecording 
+          ? (hasSound ? '🎙️ Captando áudio...' : '🎙️ Aguardando som...') 
+          : '🎙️ Microfone'
+        }
       </div>
     </div>
   );
 }
 
-// Manter export do nome antigo para compatibilidade
+// Export para compatibilidade
 export { AudioLevelMeter as AudioWaveform };
 
 /**

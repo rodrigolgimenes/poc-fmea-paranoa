@@ -12,9 +12,7 @@ function AudioInput({
   audioUrl, 
   isRecording, 
   formattedDuration,
-  audioLevel,
-  peakLevel,
-  isClipping,
+  stream,
   onStartRecording, 
   onStopRecording, 
   onClear,
@@ -62,14 +60,12 @@ function AudioInput({
           gap: '12px',
           marginBottom: '12px',
         }}>
-          {/* VU Meter */}
+          {/* Medidor de nível de áudio */}
           <AudioLevelMeter 
-            audioLevel={audioLevel} 
-            peakLevel={peakLevel}
-            isClipping={isClipping}
+            stream={stream}
             isRecording={isRecording} 
             height={50} 
-            barCount={20} 
+            barCount={24} 
           />
           
           {/* Timer */}
@@ -491,9 +487,7 @@ export default function DiarioBordo() {
           audioUrl={audioDetalhe.audioUrl}
           isRecording={audioDetalhe.isRecording}
           formattedDuration={audioDetalhe.formattedDuration}
-          audioLevel={audioDetalhe.audioLevel}
-          peakLevel={audioDetalhe.peakLevel}
-          isClipping={audioDetalhe.isClipping}
+          stream={audioDetalhe.stream}
           onStartRecording={audioDetalhe.startRecording}
           onStopRecording={audioDetalhe.stopRecording}
           onClear={audioDetalhe.clearRecording}
@@ -505,9 +499,7 @@ export default function DiarioBordo() {
           audioUrl={audioObservacao.audioUrl}
           isRecording={audioObservacao.isRecording}
           formattedDuration={audioObservacao.formattedDuration}
-          audioLevel={audioObservacao.audioLevel}
-          peakLevel={audioObservacao.peakLevel}
-          isClipping={audioObservacao.isClipping}
+          stream={audioObservacao.stream}
           onStartRecording={audioObservacao.startRecording}
           onStopRecording={audioObservacao.stopRecording}
           onClear={audioObservacao.clearRecording}

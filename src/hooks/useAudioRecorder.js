@@ -16,11 +16,7 @@ export function useAudioRecorder() {
   const [audioUrl, setAudioUrl] = useState(null);
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState(null);
-  
-  // Dados do medidor de nível (VU Meter)
-  const [audioLevel, setAudioLevel] = useState(0);     // Nível RMS normalizado (0-1)
-  const [peakLevel, setPeakLevel] = useState(0);       // Pico máximo recente
-  const [isClipping, setIsClipping] = useState(false); // Indicador de clipping
+  const [stream, setStream] = useState(null); // MediaStream para visualização
   
   const mediaRecorderRef = useRef(null);
   const audioContextRef = useRef(null);
@@ -137,6 +133,7 @@ export function useAudioRecorder() {
         } 
       });
       streamRef.current = stream;
+      setStream(stream); // Expor stream para visualização
       
       // Setup audio context para medição de nível
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
@@ -214,11 +211,7 @@ export function useAudioRecorder() {
     
     setIsRecording(false);
     setIsPaused(false);
-    setAudioLevel(0);
-    setPeakLevel(0);
-    setIsClipping(false);
-    smoothedLevelRef.current = 0;
-    peakHoldRef.current = 0;
+    setStream(null); // Limpar stream
   }, []);
 
   const pauseRecording = useCallback(() => {
@@ -259,10 +252,7 @@ export function useAudioRecorder() {
     duration,
     formattedDuration: formatDuration(duration),
     error,
-    // Dados do medidor de nível (VU Meter)
-    audioLevel,   // Nível RMS normalizado (0-1)
-    peakLevel,    // Pico máximo recente (0-1)
-    isClipping,   // true se estiver estourando
+    stream, // MediaStream para visualização
     startRecording,
     stopRecording,
     pauseRecording,
