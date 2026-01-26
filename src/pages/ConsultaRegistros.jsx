@@ -473,25 +473,27 @@ export default function ConsultaRegistros() {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      height: '100vh',
+      maxHeight: '100vh',
       background: '#1a1a1a',
       display: 'flex',
       flexDirection: 'column',
+      overflow: 'hidden',
     }}>
       {/* Header */}
       <header style={{
-        padding: '12px 16px',
+        padding: '10px 12px',
         borderBottom: '1px solid #3a3a3a',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
+        flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-<img src="/logo_dw.png" alt="DataWake" style={{ height: 28 }} onError={(e) => { e.currentTarget.style.display='none'; }} />
-          <strong style={{ color: '#fff', letterSpacing: 1 }}><span style={{ color: '#f5a623' }}>DATA</span>WAKE</strong>
-          <span style={{ fontSize: 12, color: '#888' }}>Diário de Bordo</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <img src="/logo_dw.png" alt="DataWake" style={{ height: 24 }} onError={(e) => { e.currentTarget.style.display='none'; }} />
+          <span style={{ fontSize: 11, color: '#888' }}>Diário de Bordo</span>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <button
             onClick={async () => {
               const res = await transcreverRetroativo(50);
@@ -499,101 +501,102 @@ export default function ConsultaRegistros() {
               else alert(`Processados: ${res.data?.processed ?? 0}`);
               loadRegistros();
             }}
-            style={{ background: '#3a3a3a', color: '#f5a623', border: 'none', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontSize: 12 }}
-          >Transcrever pendentes</button>
+            style={{ background: '#3a3a3a', color: '#f5a623', border: 'none', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', fontSize: 10, whiteSpace: 'nowrap' }}
+          >Transcrever</button>
           <div style={{
             background: '#242424',
-            padding: '6px 12px',
+            padding: '4px 8px',
             borderRadius: '6px',
-            fontSize: '12px',
+            fontSize: '10px',
             color: '#888',
             border: '1px solid #3a3a3a',
           }}>
-            Ambiente: <span style={{ color: '#f5a623' }}>TESTES</span>
+            <span style={{ color: '#f5a623' }}>TESTES</span>
           </div>
         </div>
       </header>
 
       {/* Page content */}
-      <div style={{ flex: 1, padding: '24px', overflow: 'auto' }}>
+      <div style={{ flex: 1, padding: '12px', overflow: 'auto', minHeight: 0 }}>
         {/* Title and search */}
         <div style={{ 
           display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: '24px',
-          flexWrap: 'wrap',
-          gap: '16px',
+          flexDirection: 'column',
+          gap: '10px',
+          marginBottom: '12px',
         }}>
-          <h2 style={{ 
-            fontSize: '20px', 
-            fontWeight: '600', 
-            color: '#fff',
-            margin: 0,
-          }}>
-            📋 Consulta de Registros
-          </h2>
-          
-          {/* Search */}
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <input
-              type="text"
-              placeholder="🔍 Buscar etiqueta ou defeito..."
-              value={filtroEtiqueta}
-              onChange={(e) => setFiltroEtiqueta(e.target.value)}
-              style={{
-                padding: '10px 16px',
-                background: '#242424',
-                border: '1px solid #3a3a3a',
-                borderRadius: '8px',
-                color: '#fff',
-                fontSize: '14px',
-                width: '280px',
-              }}
-            />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ 
+              fontSize: '16px', 
+              fontWeight: '600', 
+              color: '#fff',
+              margin: 0,
+            }}>
+              📋 Consulta de Registros
+            </h2>
             <button 
               onClick={loadRegistros}
               disabled={isLoading}
               style={{
-                padding: '10px 16px',
+                padding: '6px 12px',
                 background: '#f5a623',
                 border: 'none',
-                borderRadius: '8px',
+                borderRadius: '6px',
                 color: '#1a1a1a',
-                fontSize: '14px',
+                fontSize: '12px',
                 fontWeight: '600',
                 cursor: 'pointer',
               }}
             >
-              🔄 Atualizar
+              🔄
             </button>
           </div>
+          
+          {/* Search */}
+          <input
+            type="text"
+            placeholder="🔍 Buscar etiqueta ou defeito..."
+            value={filtroEtiqueta}
+            onChange={(e) => setFiltroEtiqueta(e.target.value)}
+            style={{
+              padding: '10px 14px',
+              background: '#242424',
+              border: '1px solid #3a3a3a',
+              borderRadius: '8px',
+              color: '#fff',
+              fontSize: '14px',
+              width: '100%',
+            }}
+          />
         </div>
 
         {/* Stats */}
         <div style={{ 
           display: 'flex', 
-          gap: '16px', 
-          marginBottom: '24px',
-          flexWrap: 'wrap',
+          gap: '8px', 
+          marginBottom: '12px',
         }}>
           <div style={{ 
-            padding: '12px 20px', 
+            padding: '8px 12px', 
             background: '#242424', 
-            borderRadius: '8px',
+            borderRadius: '6px',
             border: '1px solid #3a3a3a',
+            flex: 1,
+            textAlign: 'center',
           }}>
-            <span style={{ color: '#888', fontSize: '13px' }}>Etiquetas: </span>
-            <span style={{ color: '#f5a623', fontWeight: '700', fontSize: '16px' }}>{totalEtiquetas}</span>
+            <span style={{ color: '#888', fontSize: '11px' }}>Etiquetas: </span>
+            <span style={{ color: '#f5a623', fontWeight: '700', fontSize: '14px' }}>{totalEtiquetas}</span>
           </div>
           <div style={{ 
-            padding: '12px 20px', 
+            padding: '8px 12px', 
             background: '#242424', 
-            borderRadius: '8px',
+            borderRadius: '6px',
             border: '1px solid #3a3a3a',
+            flex: 1,
+            textAlign: 'center',
           }}>
-            <span style={{ color: '#888', fontSize: '13px' }}>Registros: </span>
-            <span style={{ color: '#f5a623', fontWeight: '700', fontSize: '16px' }}>{totalRegistros}</span>
+            <span style={{ color: '#888', fontSize: '11px' }}>Registros: </span>
+            <span style={{ color: '#f5a623', fontWeight: '700', fontSize: '14px' }}>{totalRegistros}</span>
           </div>
         </div>
 
@@ -673,9 +676,10 @@ export default function ConsultaRegistros() {
         ))}
       </div>
 
-      {/* Bottom navigation */}
+      {/* Bottom navigation - fixo no rodapé */}
       <div style={{
-        padding: '16px 24px',
+        flexShrink: 0,
+        padding: '12px 16px',
         borderTop: '1px solid #3a3a3a',
         background: '#242424',
       }}>
@@ -683,12 +687,12 @@ export default function ConsultaRegistros() {
           onClick={() => navigate('/')}
           style={{
             width: '100%',
-            padding: '16px',
+            padding: '14px',
             background: '#f5a623',
             border: 'none',
             borderRadius: '8px',
             color: '#1a1a1a',
-            fontSize: '18px',
+            fontSize: '16px',
             fontWeight: '700',
             cursor: 'pointer',
           }}
