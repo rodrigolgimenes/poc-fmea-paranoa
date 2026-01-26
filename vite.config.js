@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/poc-fmea-paranoa/',
+  base: '/',
   server: {
     proxy: {
       // Proxy para API da OpenAI (bypass CORS em desenvolvimento)
