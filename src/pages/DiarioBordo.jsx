@@ -153,9 +153,20 @@ function AudioInput({
   );
 }
 
-// Photo capture component
-function PhotoInput({ photoUrl, onCapture, onClear, videoRef, canvasRef, isOpen, onTakePhoto, onCloseCamera }) {
+// Photo capture component - Usa input file nativo para melhor compatibilidade mobile
+function PhotoInput({ photoUrl, onCapture, onClear }) {
+  const cameraInputRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const event = { target: { files: [file] } };
+      onCapture(event, true);
+    }
+    // Reset input para permitir selecionar o mesmo arquivo novamente
+    e.target.value = '';
+  };
 
   return (
     <div className="card">
@@ -168,58 +179,8 @@ function PhotoInput({ photoUrl, onCapture, onClear, videoRef, canvasRef, isOpen,
         )}
       </div>
 
-      {/* Camera preview */}
-      {isOpen && (
-        <div style={{ 
-          position: 'relative',
-          marginBottom: '12px',
-          borderRadius: '8px',
-          overflow: 'hidden',
-          background: '#000',
-        }}>
-          <video 
-            ref={videoRef}
-            autoPlay 
-            playsInline 
-            muted
-            style={{ 
-              width: '100%', 
-              height: 'auto',
-              maxHeight: '300px',
-              objectFit: 'cover',
-            }}
-          />
-          <div style={{
-            position: 'absolute',
-            bottom: '12px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            display: 'flex',
-            gap: '12px',
-          }}>
-            <button 
-              className="btn btn-danger"
-              onClick={onCloseCamera}
-              style={{ padding: '12px 20px' }}
-            >
-              ✕ Cancelar
-            </button>
-            <button 
-              className="btn btn-success"
-              onClick={onTakePhoto}
-              style={{ padding: '12px 24px', fontSize: '18px' }}
-            >
-              📸 Capturar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Canvas for capturing (hidden) */}
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
-
       {/* Photo preview */}
-      {photoUrl && !isOpen && (
+      {photoUrl && (
         <div style={{ marginBottom: '12px' }}>
           <div style={{ 
             position: 'relative',
@@ -252,12 +213,12 @@ function PhotoInput({ photoUrl, onCapture, onClear, videoRef, canvasRef, isOpen,
         </div>
       )}
 
-      {/* Action buttons */}
-      {!photoUrl && !isOpen && (
+      {/* Action buttons - usa input nativo com capture para abrir câmera diretamente */}
+      {!photoUrl && (
         <div style={{ display: 'flex', gap: '12px' }}>
           <button 
             className="btn btn-primary"
-            onClick={onCapture}
+            onClick={() => cameraInputRef.current?.click()}
             style={{ flex: 1 }}
           >
             📷 Tirar Foto
@@ -267,21 +228,23 @@ function PhotoInput({ photoUrl, onCapture, onClear, videoRef, canvasRef, isOpen,
             onClick={() => fileInputRef.current?.click()}
             style={{ flex: 1 }}
           >
-            📁 Escolher Arquivo
+            📁 Galeria
           </button>
+          {/* Input para câmera - capture="environment" abre câmera traseira */}
+          <input 
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+          />
+          {/* Input para galeria - sem capture para abrir seletor de arquivos */}
           <input 
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                // This will be handled by the parent
-                const event = { target: { files: [file] } };
-                onCapture(event, true);
-              }
-            }}
+            onChange={handleFileChange}
             style={{ display: 'none' }}
           />
         </div>
@@ -563,18 +526,7 @@ export default function DiarioBordo() {
         {/* Photo */}
         <PhotoInput
           photoUrl={camera.photoUrl}
-          isOpen={camera.isOpen}
-          videoRef={camera.videoRef}
-          canvasRef={camera.canvasRef}
-          onCapture={(e, isFile) => {
-            if (isFile) {
-              camera.handleFileInput(e);
-            } else {
-              camera.openCamera();
-            }
-          }}
-          onTakePhoto={camera.takePhoto}
-          onCloseCamera={camera.closeCamera}
+          onCapture={(e) => camera.handleFileInput(e)}
           onClear={camera.clearPhoto}
         />
 

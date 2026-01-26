@@ -69,18 +69,15 @@ export default function LerEtiqueta() {
     }}>
       {/* Header */}
       <header style={{
-        padding: '20px 24px',
-        borderBottom: '1px solid #3a3a3a',
+        padding: '16px 24px',
+        background: '#000',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
       }}>
-        <div>
-<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <img src="/logo_dw.png" alt="DataWake" style={{ height: 28 }} onError={(e) => { e.currentTarget.style.display='none'; }} />
-            <strong style={{ color: '#fff', letterSpacing: 1 }}><span style={{ color: '#f5a623' }}>DATA</span>WAKE</strong>
-            <span style={{ fontSize: 12, color: '#888' }}>Diário de Bordo</span>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <img src="/logo_dw.png" alt="DataWake" style={{ height: 32 }} onError={(e) => { e.currentTarget.style.display='none'; }} />
+          <span style={{ fontSize: 13, color: '#888' }}>Diário de Bordo</span>
         </div>
         <div style={{
           background: '#242424',
