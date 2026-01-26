@@ -6,11 +6,9 @@ import {
   ConsultaRegistros,
 } from './pages';
 
-const BASE_PATH = '/poc-fmea-paranoa';
-
 function App() {
   return (
-    <BrowserRouter basename={BASE_PATH}>
+    <BrowserRouter>
       <Routes>
         {/* Diário de Bordo */}
         <Route path="/" element={<LerEtiqueta />} />
