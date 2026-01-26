@@ -9,32 +9,32 @@ export default function LerEtiqueta() {
   const [etiqueta, setEtiqueta] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [refugoData, setRefugoData] = useState(null);
 
   // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  const handleBuscar = async () => {
-    if (!etiqueta.trim()) {
+  const handleBuscar = async (codigoOverride) => {
+    const codigo = codigoOverride || etiqueta;
+    if (!codigo.trim()) {
       setError('Digite ou escaneie uma etiqueta');
       return;
     }
 
     setIsLoading(true);
     setError(null);
-    setRefugoData(null);
 
     try {
-      const { data, error: fetchError } = await buscarRefugoPorEtiqueta(etiqueta);
+      const { data, error: fetchError } = await buscarRefugoPorEtiqueta(codigo);
       
       if (fetchError) {
         setError(fetchError.message);
         return;
       }
       
-      setRefugoData(data);
+      // Etiqueta encontrada → navega direto para o Diário de Bordo
+      navigate('/diario-bordo', { state: { refugoData: data } });
     } catch (err) {
       setError('Erro ao buscar etiqueta. Tente novamente.');
       console.error(err);
@@ -49,36 +49,15 @@ export default function LerEtiqueta() {
     }
   };
 
-  const handleIniciarRegistro = () => {
-    // Pass refugo data to the next screen via state
-    navigate('/diario-bordo', { state: { refugoData } });
-  };
-
   const handleLimpar = () => {
     setEtiqueta('');
-    setRefugoData(null);
     setError(null);
     inputRef.current?.focus();
   };
 
-  const handleUsarExemplo = async (codigo) => {
+  const handleUsarExemplo = (codigo) => {
     setEtiqueta(codigo);
-    setIsLoading(true);
-    setError(null);
-    setRefugoData(null);
-    try {
-      const { data, error: fetchError } = await buscarRefugoPorEtiqueta(codigo);
-      if (fetchError) {
-        setError(fetchError.message);
-        return;
-      }
-      setRefugoData(data);
-    } catch (err) {
-      setError('Erro ao buscar etiqueta. Tente novamente.');
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
+    handleBuscar(codigo);
   };
 
   return (
@@ -174,7 +153,7 @@ export default function LerEtiqueta() {
           </div>
 
           <button 
-            onClick={handleBuscar}
+            onClick={() => handleBuscar()}
             disabled={isLoading || !etiqueta.trim()}
             style={{ 
               width: '100%',
@@ -215,112 +194,8 @@ export default function LerEtiqueta() {
           </div>
         )}
 
-        {/* Refugo Data Display */}
-        {refugoData && (
-          <>
-            <div className="card" style={{ 
-              borderLeft: '4px solid var(--color-success)',
-              background: 'rgba(46, 204, 113, 0.05)',
-            }}>
-              <div className="card-header">
-                <span className="card-title">✓ Etiqueta Encontrada</span>
-                <span className="status-badge" style={{ 
-                  background: 'var(--color-success)', 
-                  color: 'white' 
-                }}>
-                  {refugoData.etiqueta}
-                </span>
-              </div>
-
-              <div className="info-grid" style={{ marginTop: '16px' }}>
-                <div className="info-item" style={{ gridColumn: '1 / -1' }}>
-                  <div className="label">Defeito Identificado</div>
-                  <div className="value" style={{ 
-                    fontSize: '24px', 
-                    color: 'var(--color-warning)',
-                    fontWeight: '700',
-                  }}>
-                    🔴 {refugoData.desc_defeito}
-                  </div>
-                  <div style={{ 
-                    fontSize: '12px', 
-                    color: 'var(--color-text-muted)',
-                    marginTop: '4px' 
-                  }}>
-                    Código: {refugoData.cod_defeito}
-                  </div>
-                </div>
-
-                <div className="info-item">
-                  <div className="label">Produto</div>
-                  <div className="value">{refugoData.cod_produto}</div>
-                </div>
-
-                <div className="info-item">
-                  <div className="label">OP</div>
-                  <div className="value">{refugoData.op}</div>
-                </div>
-
-                <div className="info-item">
-                  <div className="label">Filial</div>
-                  <div className="value">{refugoData.filial || '-'}</div>
-                </div>
-
-                <div className="info-item">
-                  <div className="label">Usuário</div>
-                  <div className="value">{refugoData.usuario || '-'}</div>
-                </div>
-
-                <div className="info-item">
-                  <div className="label">Data/Hora</div>
-                  <div className="value">
-                    {refugoData.dt_refugo 
-                      ? new Date(refugoData.dt_refugo).toLocaleString('pt-BR')
-                      : refugoData.data_refugo || '-'}
-                  </div>
-                </div>
-
-                <div className="info-item">
-                  <div className="label">Centro de Custo</div>
-                  <div className="value">{refugoData.centro_custo || '-'}</div>
-                </div>
-
-                <div className="info-item">
-                  <div className="label">Qtd Retrabalho</div>
-                  <div className="value">{refugoData.qtd_retrabalho || 1}</div>
-                </div>
-
-                <div className="info-item">
-                  <div className="label">Origem</div>
-                  <div className="value" style={{ fontSize: '11px' }}>
-                    {refugoData.origem || 'ELIPSE_E3.v_Refugo'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Action buttons */}
-            <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-              <button 
-                className="btn btn-secondary"
-                onClick={handleLimpar}
-                style={{ flex: 1 }}
-              >
-                🔄 Nova Etiqueta
-              </button>
-              <button 
-                className="btn btn-warning btn-lg"
-                onClick={handleIniciarRegistro}
-                style={{ flex: 2 }}
-              >
-                📝 INICIAR REGISTRO
-              </button>
-            </div>
-          </>
-        )}
-
         {/* Quick tips */}
-        {!refugoData && !error && (
+        {!error && (
           <div className="card" style={{ 
             background: 'rgba(72, 202, 228, 0.1)', 
             borderLeft: '4px solid var(--color-info)',
