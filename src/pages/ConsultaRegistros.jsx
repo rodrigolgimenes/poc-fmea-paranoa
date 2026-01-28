@@ -475,25 +475,35 @@ export default function ConsultaRegistros() {
     <div style={{
       height: '100vh',
       maxHeight: '100vh',
-      background: '#1a1a1a',
+      background: '#18191a',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
+      fontFamily: "'Exo', sans-serif",
     }}>
-      {/* Header */}
+      {/* Header - DataDriven Style */}
       <header style={{
-        padding: '10px 12px',
-        borderBottom: '1px solid #3a3a3a',
+        padding: '12px 16px',
+        background: '#242526',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexShrink: 0,
+        boxShadow: '2px 2px 5px 1px rgba(0, 0, 0, 0.2)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <img src="/logo_dw.png" alt="DataWake" style={{ height: 24 }} onError={(e) => { e.currentTarget.style.display='none'; }} />
-          <span style={{ fontSize: 11, color: '#888' }}>Diário de Bordo</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <img 
+            src="/datawake_logo.svg" 
+            alt="DataWake" 
+            style={{ height: 36 }} 
+            onError={(e) => { e.currentTarget.style.display='none'; }} 
+          />
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#ccc' }}>Consulta de Registros</span>
+            <span style={{ fontSize: 10, color: '#707070' }}>Diário de Bordo</span>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button
             onClick={async () => {
               const res = await transcreverRetroativo(50);
@@ -501,17 +511,17 @@ export default function ConsultaRegistros() {
               else alert(`Processados: ${res.data?.processed ?? 0}`);
               loadRegistros();
             }}
-            style={{ background: '#3a3a3a', color: '#f5a623', border: 'none', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', fontSize: 10, whiteSpace: 'nowrap' }}
+            style={{ background: '#3a3b3c', color: '#FDB913', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 11, whiteSpace: 'nowrap', fontFamily: "'Exo', sans-serif" }}
           >Transcrever</button>
           <div style={{
-            background: '#242424',
-            padding: '4px 8px',
+            background: '#3a3b3c',
+            padding: '5px 10px',
             borderRadius: '6px',
             fontSize: '10px',
-            color: '#888',
-            border: '1px solid #3a3a3a',
+            color: '#707070',
+            border: '1px solid #3a3b3c',
           }}>
-            <span style={{ color: '#f5a623' }}>TESTES</span>
+            Ambiente: <span style={{ color: '#FDB913', fontWeight: 600 }}>TESTES</span>
           </div>
         </div>
       </header>
@@ -680,21 +690,23 @@ export default function ConsultaRegistros() {
       <div style={{
         flexShrink: 0,
         padding: '12px 16px',
-        borderTop: '1px solid #3a3a3a',
-        background: '#242424',
+        borderTop: '1px solid #3a3b3c',
+        background: '#242526',
       }}>
         <button 
           onClick={() => navigate('/')}
           style={{
             width: '100%',
             padding: '14px',
-            background: '#f5a623',
+            background: '#FDB913',
             border: 'none',
             borderRadius: '8px',
-            color: '#1a1a1a',
+            color: '#18191a',
             fontSize: '16px',
             fontWeight: '700',
+            fontFamily: "'Exo', sans-serif",
             cursor: 'pointer',
+            transition: 'all 0.2s ease',
           }}
         >
           📋 NOVO REGISTRO

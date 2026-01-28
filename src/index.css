@@ -1,23 +1,27 @@
 /* DataWake - Diário de Bordo */
+@import url('https://fonts.googleapis.com/css2?family=Exo:ital,wght@0,100..900;1,100..900&display=swap');
+
 :root {
-  /* Colors - DataWake Identity */
-  --color-bg: #1a1a1a;
-  --color-bg-card: #242424;
-  --color-bg-input: #2d2d2d;
-  --color-text: #ffffff;
-  --color-text-muted: #888888;
-  --color-primary: #f5a623;
-  --color-primary-hover: #ffc107;
-  --color-success: #4caf50;
-  --color-warning: #f5a623;
-  --color-danger: #e63946;
-  --color-info: #f5a623;
-  --color-border: #3a3a3a;
+  /* Colors - DataWake/DataDriven Identity */
+  --color-bg: #18191a;
+  --color-bg-sidebar: #242526;
+  --color-bg-card: #242526;
+  --color-bg-input: #3a3b3c;
+  --color-text: #ccc;
+  --color-text-muted: #707070;
+  --color-primary: #FDB913;
+  --color-primary-hover: #ffcc00;
+  --color-secondary: #3a3b3c;
+  --color-success: #2d6941;
+  --color-warning: #eea303;
+  --color-danger: #dc3545;
+  --color-info: #17a2b8;
+  --color-border: #3a3b3c;
   
   /* Status colors */
-  --status-normal: #4caf50;
-  --status-tendencia: #f5a623;
-  --status-desvio: #e63946;
+  --status-normal: #2d6941;
+  --status-tendencia: #eea303;
+  --status-desvio: #dc3545;
   
   /* Spacing */
   --space-xs: 8px;
@@ -52,7 +56,7 @@ html, body {
 }
 
 body {
-  font-family: 'Segoe UI', 'Roboto', sans-serif;
+  font-family: 'Exo', sans-serif;
   font-size: var(--font-size-base);
   background: var(--color-bg);
   color: var(--color-text);

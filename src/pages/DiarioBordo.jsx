@@ -425,29 +425,37 @@ export default function DiarioBordo() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#1a1a1a', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
+    <div style={{ minHeight: '100vh', background: '#18191a', display: 'flex', flexDirection: 'column', fontFamily: "'Exo', sans-serif" }}>
+      {/* Header - DataDriven Style */}
       <header style={{
         padding: '12px 16px',
-        borderBottom: '1px solid #3a3a3a',
+        background: '#242526',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
+        boxShadow: '2px 2px 5px 1px rgba(0, 0, 0, 0.2)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-<img src="/logo_dw.png" alt="DataWake" style={{ height: 28 }} onError={(e) => { e.currentTarget.style.display='none'; }} />
-          <strong style={{ color: '#fff', letterSpacing: 1 }}><span style={{ color: '#f5a623' }}>DATA</span>WAKE</strong>
-          <span style={{ fontSize: 12, color: '#888' }}>Diário de Bordo</span>
+          <img 
+            src="/datawake_logo.svg" 
+            alt="DataWake" 
+            style={{ height: 40 }} 
+            onError={(e) => { e.currentTarget.style.display='none'; }} 
+          />
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: 16, fontWeight: 600, color: '#ccc' }}>Diário de Bordo</span>
+            <span style={{ fontSize: 11, color: '#707070' }}>Registro de Refugos</span>
+          </div>
         </div>
         <div style={{
-          background: '#242424',
+          background: '#3a3b3c',
           padding: '6px 12px',
           borderRadius: '6px',
-          fontSize: '12px',
-          color: '#888',
-          border: '1px solid #3a3a3a',
+          fontSize: '11px',
+          color: '#707070',
+          border: '1px solid #3a3b3c',
         }}>
-          Ambiente: <span style={{ color: '#f5a623' }}>TESTES</span>
+          Ambiente: <span style={{ color: '#FDB913', fontWeight: 600 }}>TESTES</span>
         </div>
       </header>
 
@@ -455,8 +463,9 @@ export default function DiarioBordo() {
         {/* Context summary */}
         <div className="card" style={{ 
           padding: '12px 16px',
-          background: 'rgba(72, 202, 228, 0.1)',
-          borderLeft: '4px solid var(--color-info)',
+          background: 'rgba(23, 162, 184, 0.1)',
+          borderLeft: '4px solid #17a2b8',
+          borderRadius: '8px',
         }}>
           <div style={{ 
             display: 'flex', 
