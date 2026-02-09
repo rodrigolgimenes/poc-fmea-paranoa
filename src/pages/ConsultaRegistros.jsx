@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabase';
-import { atualizarTranscricao, excluirEvento, transcreverRetroativo } from '../services/diarioRefugoService';
+import { 
+  listarEventosRecentes, 
+  atualizarTranscricao, 
+  excluirEvento, 
+  transcreverRetroativo 
+} from '../services/diarioRefugoService';
 
 // Audio player component
 function AudioPlayer({ url, label }) {
@@ -420,14 +424,7 @@ export default function ConsultaRegistros() {
     setError(null);
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from('dw_diario_refugo_evento')
-        .select(`
-          *,
-          midias:dw_diario_refugo_midia(*)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(100);
+      const { data, error: fetchError } = await listarEventosRecentes(100);
 
       if (fetchError) throw fetchError;
       setRegistros(data || []);
