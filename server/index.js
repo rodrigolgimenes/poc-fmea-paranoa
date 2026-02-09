@@ -21,7 +21,7 @@ const UPLOAD_PATH = process.env.UPLOAD_PATH || path.join(__dirname, '../uploads'
 const UPLOAD_URL_BASE = process.env.UPLOAD_URL_BASE || `http://localhost:${PORT}/uploads`;
 
 // Criar pastas de upload se não existirem
-const uploadDirs = ['audio', 'fotos'];
+const uploadDirs = ['audio', 'fotos', 'outros'];
 uploadDirs.forEach(dir => {
   const fullPath = path.join(UPLOAD_PATH, dir);
   if (!fs.existsSync(fullPath)) {
