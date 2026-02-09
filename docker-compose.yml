@@ -19,6 +19,7 @@ services:
       - API_PORT=3001
       - UPLOAD_PATH=/app/uploads
       - UPLOAD_URL_BASE=${UPLOAD_URL_BASE:-https://localhost/uploads}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - uploads_data:/app/uploads
     networks:
