@@ -18,13 +18,13 @@ services:
       - DATABASE=${DATABASE}
       - API_PORT=3001
       - UPLOAD_PATH=/app/uploads
-      - UPLOAD_URL_BASE=${UPLOAD_URL_BASE:-http://localhost/uploads}
+      - UPLOAD_URL_BASE=${UPLOAD_URL_BASE:-https://localhost/uploads}
     volumes:
       - uploads_data:/app/uploads
     networks:
       - diariobordo-network
 
-  # Frontend (React + Nginx)
+  # Frontend (React + Nginx + HTTPS)
   frontend:
     build:
       context: .
@@ -33,6 +33,9 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - ./Certificado:/etc/nginx/ssl:ro
     depends_on:
       - backend
     networks:
