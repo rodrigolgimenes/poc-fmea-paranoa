@@ -541,6 +541,51 @@ app.patch('/api/diario-evento/:eventoId/finalizar', async (req, res) => {
   }
 });
 
+// Excluir evento e suas mídias
+app.delete('/api/diario-evento/:eventoId', async (req, res) => {
+  try {
+    const { eventoId } = req.params;
+    const pool = await getPool();
+    
+    // Buscar mídias para deletar arquivos físicos
+    const midias = await pool.request()
+      .input('evento_id', sql.UniqueIdentifier, eventoId)
+      .query('SELECT arquivo_path FROM dw_diariobordo_refugo_midia WHERE evento_id = @evento_id');
+    
+    // Deletar arquivos físicos
+    for (const midia of midias.recordset) {
+      if (midia.arquivo_path && fs.existsSync(midia.arquivo_path)) {
+        try {
+          fs.unlinkSync(midia.arquivo_path);
+          console.log(`[Delete] Arquivo removido: ${midia.arquivo_path}`);
+        } catch (fileErr) {
+          console.warn(`[Delete] Falha ao remover arquivo: ${midia.arquivo_path}`, fileErr.message);
+        }
+      }
+    }
+    
+    // Deletar mídias do banco
+    await pool.request()
+      .input('evento_id', sql.UniqueIdentifier, eventoId)
+      .query('DELETE FROM dw_diariobordo_refugo_midia WHERE evento_id = @evento_id');
+    
+    // Deletar evento
+    const result = await pool.request()
+      .input('evento_id', sql.UniqueIdentifier, eventoId)
+      .query('DELETE FROM dw_diariobordo_refugo_evento WHERE evento_id = @evento_id');
+    
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ data: null, error: { message: 'Evento não encontrado' } });
+    }
+    
+    console.log(`[Delete] Evento ${eventoId} excluído com sucesso`);
+    res.json({ data: { deleted: true, evento_id: eventoId }, error: null });
+  } catch (error) {
+    console.error('[API] Erro ao excluir evento:', error.message);
+    res.status(500).json({ data: null, error: { message: error.message } });
+  }
+});
+
 // ==================== INICIAR SERVIDOR ====================
 
 app.listen(PORT, () => {

@@ -15,12 +15,9 @@ export const listarEventosRecentes = api.listarEventosRecentes;
 export const atualizarTranscricao = api.atualizarTranscricao;
 
 /**
- * Exclui um evento (TODO: implementar no backend)
+ * Exclui um evento e suas mídias
  */
-export async function excluirEvento(eventoId) {
-  console.warn('[diarioRefugoService] excluirEvento não implementado no backend');
-  return { ok: false, error: { message: 'Funcionalidade não implementada' } };
-}
+export const excluirEvento = api.excluirEvento;
 
 /**
  * Transcrição retroativa (TODO: implementar no backend)

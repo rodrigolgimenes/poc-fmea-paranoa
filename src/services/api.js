@@ -137,6 +137,15 @@ export async function finalizarEvento(eventoId, transcricoes = {}) {
   });
 }
 
+/**
+ * Exclui um evento e suas mídias
+ */
+export async function excluirEvento(eventoId) {
+  return fetchApi(`/api/diario-evento/${eventoId}`, {
+    method: 'DELETE',
+  });
+}
+
 // ==================== MÍDIA ====================
 
 /**
@@ -218,6 +227,7 @@ export default {
   listarEventosRecentes,
   atualizarTranscricao,
   finalizarEvento,
+  excluirEvento,
   registrarMidia,
   uploadMidia,
   testConnection,
