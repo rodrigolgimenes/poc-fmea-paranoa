@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # Backend API (Node.js + Express + SQL Server)
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: diariobordo-api
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - HOST_DB=${HOST_DB}
+      - PORT_DB=${PORT_DB:-1433}
+      - USER_DB=${USER_DB}
+      - PASSWORD_DB=${PASSWORD_DB}
+      - DATABASE=${DATABASE}
+      - API_PORT=3001
+      - UPLOAD_PATH=/app/uploads
+      - UPLOAD_URL_BASE=${UPLOAD_URL_BASE:-http://localhost/uploads}
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - diariobordo-network
+
+  # Frontend (React + Nginx)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: diariobordo-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - diariobordo-network
+
+volumes:
+  uploads_data:
+    driver: local
+
+networks:
+  diariobordo-network:
+    driver: bridge

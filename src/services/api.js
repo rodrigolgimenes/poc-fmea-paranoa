@@ -3,7 +3,9 @@
  * Substitui chamadas diretas ao Supabase
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Em produção (Docker), usa URL relativa pois Nginx faz proxy
+// Em desenvolvimento, usa localhost:3001
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
 
 /**
  * Helper para fazer requisições à API

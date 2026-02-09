@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+.gitignore
+*.md
+.env
+.env.*
+uploads
+server/node_modules
+server/uploads
