@@ -1,6 +1,9 @@
 # Backend API - Node.js + Express + SQL Server
 FROM node:20-alpine
 
+# Instalar certificados CA para HTTPS funcionar corretamente
+RUN apk add --no-cache ca-certificates
+
 WORKDIR /app
 
 # Copiar package files
@@ -13,7 +16,7 @@ RUN npm ci --only=production
 COPY . .
 
 # Criar pasta de uploads
-RUN mkdir -p /app/uploads/audio /app/uploads/fotos
+RUN mkdir -p /app/uploads/audio /app/uploads/fotos /app/uploads/outros
 
 # Expor porta
 EXPOSE 3001

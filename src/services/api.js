@@ -175,12 +175,15 @@ export async function uploadMidia(eventoId, arquivo, tipo, metadados = {}) {
   const url = `${API_BASE_URL}/api/upload-midia`;
   
   const formData = new FormData();
-  formData.append('file', arquivo);
+  // IMPORTANTE: Enviar campos de texto ANTES do arquivo
+  // para que o multer tenha acesso a req.body.tipo no callback destination
   formData.append('evento_id', eventoId);
   formData.append('tipo', tipo);
   if (metadados.duracao_seg) {
     formData.append('duracao_seg', metadados.duracao_seg.toString());
   }
+  // Arquivo por último
+  formData.append('file', arquivo);
 
   try {
     const response = await fetch(url, {
