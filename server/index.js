@@ -121,6 +121,89 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ==================== TRANSCRIÇÃO (OpenAI Whisper) ====================
+
+// Configuração do multer para transcrição (arquivo em memória)
+const transcribeUpload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB (limite do Whisper)
+});
+
+// Endpoint de transcrição de áudio
+app.post('/api/transcribe-audio', transcribeUpload.single('file'), async (req, res) => {
+  try {
+    const { evento_id, tipo, language = 'pt' } = req.body;
+    
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'Nenhum arquivo de áudio enviado' });
+    }
+
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    if (!OPENAI_API_KEY) {
+      console.error('[Transcrição] OPENAI_API_KEY não configurada');
+      return res.status(500).json({ success: false, error: 'API Key do OpenAI não configurada' });
+    }
+
+    console.log(`[Transcrição] Processando ${tipo} para evento ${evento_id}`);
+    console.log(`[Transcrição] Arquivo: ${req.file.originalname}, Tamanho: ${req.file.size}, Tipo: ${req.file.mimetype}`);
+
+    // Criar FormData para enviar ao OpenAI
+    const formData = new FormData();
+    const blob = new Blob([req.file.buffer], { type: req.file.mimetype });
+    formData.append('file', blob, req.file.originalname || 'audio.webm');
+    formData.append('model', 'whisper-1');
+    formData.append('language', language);
+
+    // Chamar API do OpenAI Whisper
+    const whisperResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: formData,
+    });
+
+    if (!whisperResponse.ok) {
+      const errorText = await whisperResponse.text();
+      console.error('[Transcrição] Erro Whisper:', errorText);
+      return res.status(500).json({ 
+        success: false, 
+        error: `Erro Whisper API: ${whisperResponse.status}`,
+        details: errorText,
+      });
+    }
+
+    const whisperResult = await whisperResponse.json();
+    const transcription = whisperResult.text;
+
+    console.log(`[Transcrição] Texto: ${transcription}`);
+
+    // Salvar transcrição no banco se evento_id fornecido
+    if (evento_id && tipo) {
+      try {
+        const pool = await getPool();
+        const column = tipo === 'detalhe' ? 'transcricao_detalhe' : 'transcricao_observacao';
+        
+        await pool.request()
+          .input('evento_id', sql.UniqueIdentifier, evento_id)
+          .input('transcricao', sql.NVarChar, transcription)
+          .query(`UPDATE dw_diariobordo_refugo_evento SET ${column} = @transcricao WHERE evento_id = @evento_id`);
+        
+        console.log(`[Transcrição] Salvo ${column} para evento ${evento_id}`);
+      } catch (dbError) {
+        console.error('[Transcrição] Erro ao salvar no banco:', dbError.message);
+        // Continua e retorna a transcrição mesmo se falhar ao salvar
+      }
+    }
+
+    res.json({ success: true, text: transcription });
+
+  } catch (error) {
+    console.error('[Transcrição] Erro:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Testar conexão com o banco
 app.get('/api/test-connection', async (req, res) => {
   try {

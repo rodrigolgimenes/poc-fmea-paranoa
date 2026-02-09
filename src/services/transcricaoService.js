@@ -1,10 +1,11 @@
 /**
- * Serviço de transcrição de áudio usando Supabase Edge Function
- * A Edge Function chama OpenAI Whisper e salva a transcrição no banco
+ * Serviço de transcrição de áudio usando API local (Express + OpenAI Whisper)
  */
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://ermtbcmnokzhlzoyztou.supabase.co';
-const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/transcribe-audio`;
+// Em produção (Docker), usa URL relativa pois Nginx faz proxy
+// Em desenvolvimento, usa localhost:3001
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
+const TRANSCRIBE_URL = `${API_BASE_URL}/api/transcribe-audio`;
 
 /**
  * Transcreve um arquivo de áudio usando a Edge Function do Supabase
@@ -15,8 +16,8 @@ const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/transcribe-audio`;
  * @returns {Promise<{text: string, error: string|null}>}
  */
 export async function transcreverAudio(audioBlob, eventoId = null, tipo = 'detalhe', language = 'pt') {
-  console.log('[Transcrição] Iniciando transcrição via Edge Function...');
-  console.log('[Transcrição] URL:', EDGE_FUNCTION_URL);
+  console.log('[Transcrição] Iniciando transcrição via API local...');
+  console.log('[Transcrição] URL:', TRANSCRIBE_URL);
   
   if (!audioBlob) {
     console.error('[Transcrição] Blob de áudio não fornecido');
@@ -48,9 +49,9 @@ export async function transcreverAudio(audioBlob, eventoId = null, tipo = 'detal
       formData.append('tipo', tipo);
     }
 
-    // Enviar para Edge Function
-    console.log('[Transcrição] Enviando para Edge Function...');
-    const response = await fetch(EDGE_FUNCTION_URL, {
+    // Enviar para API local
+    console.log('[Transcrição] Enviando para API local...');
+    const response = await fetch(TRANSCRIBE_URL, {
       method: 'POST',
       body: formData,
     });
