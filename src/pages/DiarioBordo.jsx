@@ -159,7 +159,7 @@ function AudioInput({
 }
 
 // Photo capture component - Usa input file nativo para melhor compatibilidade mobile
-function PhotoInput({ photoUrl, onCapture, onClear }) {
+function PhotoInput({ photoUrl, onCapture, onClear, isCameraOpen, openCamera, closeCamera, takePhoto, switchCamera, videoRef, canvasRef }) {
   const cameraInputRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -174,6 +174,7 @@ function PhotoInput({ photoUrl, onCapture, onClear }) {
   };
 
   return (
+    <>
     <div className="card">
       <div className="card-header">
         <span className="card-title">📷 Foto (Evidência)</span>
@@ -223,7 +224,13 @@ function PhotoInput({ photoUrl, onCapture, onClear }) {
         <div style={{ display: 'flex', gap: '12px' }}>
           <button 
             className="btn btn-primary"
-            onClick={() => cameraInputRef.current?.click()}
+            onClick={() => {
+              if (navigator.mediaDevices?.getUserMedia && typeof openCamera === 'function') {
+                openCamera();
+              } else {
+                cameraInputRef.current?.click();
+              }
+            }}
             style={{ flex: 1 }}
           >
             📷 Tirar Foto
@@ -255,6 +262,24 @@ function PhotoInput({ photoUrl, onCapture, onClear }) {
         </div>
       )}
     </div>
+
+    {/* In-app camera overlay using getUserMedia */}
+    {isCameraOpen && (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: 12, display: 'flex', gap: 8 }}>
+          <button className="btn btn-secondary" onClick={switchCamera}>🔄 Trocar câmera</button>
+          <button className="btn btn-danger" style={{ marginLeft: 'auto' }} onClick={closeCamera}>✕ Fechar</button>
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <video ref={videoRef} autoPlay playsInline muted style={{ maxWidth: '100%', maxHeight: '100%' }} />
+          <canvas ref={canvasRef} style={{ display: 'none' }} />
+        </div>
+        <div style={{ padding: 16, display: 'flex', justifyContent: 'center' }}>
+          <button className="btn btn-success" onClick={takePhoto} style={{ fontSize: 18, padding: '12px 24px' }}>📸 Capturar</button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -542,6 +567,13 @@ export default function DiarioBordo() {
           photoUrl={camera.photoUrl}
           onCapture={(e) => camera.handleFileInput(e)}
           onClear={camera.clearPhoto}
+          isCameraOpen={camera.isOpen}
+          openCamera={camera.openCamera}
+          closeCamera={camera.closeCamera}
+          takePhoto={camera.takePhoto}
+          switchCamera={camera.switchCamera}
+          videoRef={camera.videoRef}
+          canvasRef={camera.canvasRef}
         />
 
         {/* Progress indicator */}
