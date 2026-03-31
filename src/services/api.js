@@ -113,6 +113,29 @@ export async function listarEventosRecentes(limite = 100) {
 }
 
 /**
+ * Busca resumo IA + histórico da Kgraph por part_number (proxy servidor)
+ */
+export async function buscarResumoKgraph(partNumber) {
+  if (!partNumber?.trim()) {
+    return { data: null, error: { message: 'part_number inválido' } };
+  }
+  return fetchApi('/api/kgraph/taghistory', {
+    method: 'POST',
+    body: JSON.stringify({ part_number: partNumber.trim() }),
+  });
+}
+
+/**
+ * Busca histórico completo do diário por código de produto
+ */
+export async function buscarEventosPorProduto(codProduto) {
+  if (!codProduto?.trim()) {
+    return { data: null, error: { message: 'Código do produto inválido' } };
+  }
+  return fetchApi(`/api/diario-eventos/produto/${encodeURIComponent(codProduto.trim())}`);
+}
+
+/**
  * Atualiza transcrições do evento
  */
 export async function atualizarTranscricao(eventoId, { detalhe = null, observacao = null }) {
@@ -228,6 +251,8 @@ export default {
   criarEvento,
   buscarEventoPorId,
   listarEventosRecentes,
+  buscarEventosPorProduto,
+  buscarResumoKgraph,
   atualizarTranscricao,
   finalizarEvento,
   excluirEvento,

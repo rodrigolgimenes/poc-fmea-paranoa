@@ -7,11 +7,11 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
-// Carrega variáveis de ambiente do .env na raiz do projeto
-dotenv.config({ path: '../.env' });
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Carrega variáveis de ambiente do .env na raiz do projeto
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
@@ -414,6 +414,38 @@ app.get('/api/diario-evento/:eventoId', async (req, res) => {
   }
 });
 
+// Buscar histórico do diário por produto
+app.get('/api/diario-eventos/produto/:codProduto', async (req, res) => {
+  try {
+    const { codProduto } = req.params;
+    const pool = await getPool();
+
+    const eventos = await pool.request()
+      .input('cod_produto', sql.VarChar, codProduto)
+      .query(`
+        SELECT *
+        FROM dw_diariobordo_refugo_evento
+        WHERE cod_produto = @cod_produto
+        ORDER BY created_at DESC
+      `);
+
+    // Para cada evento, buscar mídias
+    const eventosComMidias = await Promise.all(
+      eventos.recordset.map(async (evento) => {
+        const midias = await pool.request()
+          .input('evento_id', sql.UniqueIdentifier, evento.evento_id)
+          .query('SELECT * FROM dw_diariobordo_refugo_midia WHERE evento_id = @evento_id');
+        return { ...evento, midias: midias.recordset };
+      })
+    );
+
+    res.json({ data: eventosComMidias, error: null });
+  } catch (error) {
+    console.error('[API] Erro ao buscar eventos por produto:', error.message);
+    res.status(500).json({ data: null, error: { message: error.message } });
+  }
+});
+
 // Upload de mídia (com arquivo)
 app.post('/api/upload-midia', upload.single('file'), async (req, res) => {
   try {
@@ -582,6 +614,43 @@ app.delete('/api/diario-evento/:eventoId', async (req, res) => {
     res.json({ data: { deleted: true, evento_id: eventoId }, error: null });
   } catch (error) {
     console.error('[API] Erro ao excluir evento:', error.message);
+    res.status(500).json({ data: null, error: { message: error.message } });
+  }
+});
+
+// ==================== KGRAPH API (PROXY) ====================
+
+// Proxy para a API Kgraph - mantém o token server-side
+app.post('/api/kgraph/taghistory', async (req, res) => {
+  try {
+    const { part_number } = req.body;
+    if (!part_number) {
+      return res.status(400).json({ data: null, error: { message: 'part_number é obrigatório' } });
+    }
+
+    const KGRAPH_TOKEN = process.env.KGRAPH_TOKEN || 'dev-token-paranoa-test-ensaio';
+    const KGRAPH_URL = 'https://kgraph.anjuna-tech.com/tag-alert/taghistory';
+
+    console.log(`[Kgraph] Buscando part_number=${part_number}`);
+
+    const kgraphResponse = await fetch(KGRAPH_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${KGRAPH_TOKEN}`,
+      },
+      body: JSON.stringify({ part_number }),
+    });
+
+    const kgraphData = await kgraphResponse.json();
+
+    if (!kgraphResponse.ok || kgraphData.status === 'INVALID_TAG') {
+      return res.status(404).json({ data: null, error: { message: `Produto não encontrado na Kgraph: ${part_number}` } });
+    }
+
+    res.json({ data: kgraphData, error: null });
+  } catch (error) {
+    console.error('[Kgraph] Erro:', error.message);
     res.status(500).json({ data: null, error: { message: error.message } });
   }
 });

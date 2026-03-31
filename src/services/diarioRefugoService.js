@@ -12,6 +12,8 @@ export const uploadMidia = api.uploadMidia;
 export const finalizarEvento = api.finalizarEvento;
 export const buscarEventoPorId = api.buscarEventoPorId;
 export const listarEventosRecentes = api.listarEventosRecentes;
+export const buscarEventosPorProduto = api.buscarEventosPorProduto;
+export const buscarResumoKgraph = api.buscarResumoKgraph;
 export const atualizarTranscricao = api.atualizarTranscricao;
 
 /**
@@ -34,6 +36,8 @@ export default {
   finalizarEvento,
   buscarEventoPorId,
   listarEventosRecentes,
+  buscarEventosPorProduto,
+  buscarResumoKgraph,
   atualizarTranscricao,
   excluirEvento,
   transcreverRetroativo,

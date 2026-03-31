@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  listarEventosRecentes, 
+  listarEventosRecentes,
+  buscarEventosPorProduto,
+  buscarResumoKgraph,
   atualizarTranscricao, 
   excluirEvento, 
   transcreverRetroativo 
@@ -413,11 +415,17 @@ export default function ConsultaRegistros() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filtroEtiqueta, setFiltroEtiqueta] = useState('');
+  const [modoBusca, setModoBusca] = useState('recentes'); // 'recentes' | 'produto'
+  const [codProduto, setCodProduto] = useState('');
+  const [codProdutoBuscado, setCodProdutoBuscado] = useState('');
+  const [resumoIA, setResumoIA] = useState(null);
+  const [loadingResumo, setLoadingResumo] = useState(false);
+  const [resumoExpandido, setResumoExpandido] = useState(false);
 
-  // Load registros
+  // Load registros recentes
   useEffect(() => {
-    loadRegistros();
-  }, []);
+    if (modoBusca === 'recentes') loadRegistros();
+  }, [modoBusca]);
 
   const loadRegistros = async () => {
     setIsLoading(true);
@@ -425,7 +433,6 @@ export default function ConsultaRegistros() {
 
     try {
       const { data, error: fetchError } = await listarEventosRecentes(100);
-
       if (fetchError) throw fetchError;
       setRegistros(data || []);
     } catch (err) {
@@ -433,6 +440,45 @@ export default function ConsultaRegistros() {
       setError('Erro ao carregar registros');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const buscarPorProduto = async () => {
+    if (!codProduto.trim()) return;
+    const pn = codProduto.trim();
+    setIsLoading(true);
+    setError(null);
+    setResumoIA(null);
+    setResumoExpandido(false);
+    setCodProdutoBuscado(pn);
+
+    try {
+      // Busca local e Kgraph em paralelo
+      const [localResult, kgraphResult] = await Promise.all([
+        buscarEventosPorProduto(pn),
+        (async () => {
+          setLoadingResumo(true);
+          const r = await buscarResumoKgraph(pn);
+          setLoadingResumo(false);
+          return r;
+        })(),
+      ]);
+
+      if (localResult.error) throw localResult.error;
+      setRegistros(localResult.data || []);
+      if (!localResult.data || localResult.data.length === 0) {
+        setError(`Nenhum registro local encontrado para o produto "${pn}"`);
+      }
+
+      if (!kgraphResult.error && kgraphResult.data) {
+        setResumoIA(kgraphResult.data);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar por produto:', err);
+      setError('Erro ao buscar registros do produto');
+    } finally {
+      setIsLoading(false);
+      setLoadingResumo(false);
     }
   };
 
@@ -542,7 +588,7 @@ export default function ConsultaRegistros() {
               📋 Consulta de Registros
             </h2>
             <button 
-              onClick={loadRegistros}
+              onClick={modoBusca === 'recentes' ? loadRegistros : buscarPorProduto}
               disabled={isLoading}
               style={{
                 padding: '6px 12px',
@@ -558,24 +604,223 @@ export default function ConsultaRegistros() {
               🔄
             </button>
           </div>
-          
-          {/* Search */}
-          <input
-            type="text"
-            placeholder="🔍 Buscar etiqueta ou defeito..."
-            value={filtroEtiqueta}
-            onChange={(e) => setFiltroEtiqueta(e.target.value)}
-            style={{
-              padding: '10px 14px',
-              background: '#242424',
-              border: '1px solid #3a3a3a',
-              borderRadius: '8px',
-              color: '#fff',
-              fontSize: '14px',
-              width: '100%',
-            }}
-          />
+
+          {/* Modo de busca toggle */}
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {['recentes', 'produto'].map(modo => (
+              <button
+                key={modo}
+                onClick={() => {
+                  setModoBusca(modo);
+                  setRegistros([]);
+                  setError(null);
+                  setFiltroEtiqueta('');
+                  setCodProdutoBuscado('');
+                }}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  background: modoBusca === modo ? '#f5a623' : '#2d2d2d',
+                  color: modoBusca === modo ? '#1a1a1a' : '#888',
+                  border: '1px solid ' + (modoBusca === modo ? '#f5a623' : '#3a3a3a'),
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: modoBusca === modo ? '700' : '400',
+                  fontFamily: "'Exo', sans-serif",
+                }}
+              >
+                {modo === 'recentes' ? '🕐 Recentes' : '🔎 Por Produto'}
+              </button>
+            ))}
+          </div>
+
+          {/* Busca por etiqueta/defeito (modo recentes) */}
+          {modoBusca === 'recentes' && (
+            <input
+              type="text"
+              placeholder="🔍 Filtrar etiqueta ou defeito..."
+              value={filtroEtiqueta}
+              onChange={(e) => setFiltroEtiqueta(e.target.value)}
+              style={{
+                padding: '10px 14px',
+                background: '#242424',
+                border: '1px solid #3a3a3a',
+                borderRadius: '8px',
+                color: '#fff',
+                fontSize: '14px',
+                width: '100%',
+              }}
+            />
+          )}
+
+          {/* Busca por produto */}
+          {modoBusca === 'produto' && (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                placeholder="Código do produto (ex: 12345)"
+                value={codProduto}
+                onChange={(e) => setCodProduto(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && buscarPorProduto()}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  background: '#242424',
+                  border: '1px solid #3a3a3a',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontFamily: "'Exo', sans-serif",
+                }}
+              />
+              <button
+                onClick={buscarPorProduto}
+                disabled={isLoading || !codProduto.trim()}
+                style={{
+                  padding: '10px 18px',
+                  background: codProduto.trim() ? '#f5a623' : '#3a3a3a',
+                  color: codProduto.trim() ? '#1a1a1a' : '#555',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: codProduto.trim() ? 'pointer' : 'not-allowed',
+                  fontWeight: '700',
+                  fontSize: '13px',
+                  fontFamily: "'Exo', sans-serif",
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Buscar
+              </button>
+            </div>
+          )}
+
+          {/* Indicador de produto sendo exibido */}
+          {modoBusca === 'produto' && codProdutoBuscado && !isLoading && (
+            <div style={{
+              padding: '8px 12px',
+              background: '#1a2a1a',
+              border: '1px solid #2d5a2d',
+              borderRadius: '6px',
+              fontSize: '12px',
+              color: '#6fcf6f',
+            }}>
+              Exibindo histórico do produto: <strong>{codProdutoBuscado}</strong>
+            </div>
+          )}
         </div>
+
+        {/* ===== CARD RESUMO IA ===== */}
+        {modoBusca === 'produto' && (loadingResumo || resumoIA) && (
+          <div style={{
+            background: '#1a1f2e',
+            border: '1px solid #2d3a5a',
+            borderRadius: '12px',
+            marginBottom: '12px',
+            overflow: 'hidden',
+          }}>
+            {/* Header do card */}
+            <div
+              onClick={() => !loadingResumo && setResumoExpandido(!resumoExpandido)}
+              style={{
+                padding: '14px 16px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: loadingResumo ? 'default' : 'pointer',
+                background: '#1e2540',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '18px' }}>🤖</span>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#7eb8f7' }}>
+                    Resumo IA — Kgraph
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#555' }}>
+                    {loadingResumo ? 'Carregando análise...' : `Produto: ${resumoIA?.part_number || codProdutoBuscado}`}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* Badge violações */}
+                {resumoIA?.violations_recommended?.length > 0 && (
+                  <div style={{
+                    background: '#5a2020',
+                    color: '#f87171',
+                    border: '1px solid #7a3030',
+                    borderRadius: '20px',
+                    padding: '3px 10px',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                  }}>
+                    ⚠️ {resumoIA.violations_recommended.length} alerta{resumoIA.violations_recommended.length > 1 ? 's' : ''}
+                  </div>
+                )}
+                {!loadingResumo && (
+                  <span style={{ color: '#7eb8f7', fontSize: '14px' }}>
+                    {resumoExpandido ? '▲' : '▼'}
+                  </span>
+                )}
+                {loadingResumo && (
+                  <span style={{ color: '#555', fontSize: '12px' }}>⏳</span>
+                )}
+              </div>
+            </div>
+
+            {/* Corpo colapsável */}
+            {!loadingResumo && resumoExpandido && resumoIA && (
+              <div style={{ padding: '16px' }}>
+
+                {/* Alertas de parâmetros */}
+                {resumoIA.violations_recommended?.length > 0 && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: '700', color: '#f87171', marginBottom: '8px' }}>
+                      ⚠️ Parâmetros Fora da Faixa Ótima
+                    </div>
+                    {resumoIA.violations_recommended.map((v, i) => (
+                      <div key={i} style={{
+                        background: '#2a1a1a',
+                        border: '1px solid #5a2020',
+                        borderRadius: '6px',
+                        padding: '8px 12px',
+                        marginBottom: '6px',
+                        fontSize: '12px',
+                      }}>
+                        <span style={{ color: '#f87171', fontWeight: '600' }}>{v.parameter}</span>
+                        <span style={{ color: '#888' }}> — Atual: </span>
+                        <span style={{ color: '#fff' }}>{v.actual_value}</span>
+                        <span style={{ color: '#888' }}> | Faixa: [{v.expected_range?.[0]}, {v.expected_range?.[1]}]</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Recomendações IA */}
+                {resumoIA.recommendations && (
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: '700', color: '#7eb8f7', marginBottom: '8px' }}>
+                      📋 Análise e Recomendações
+                    </div>
+                    <div style={{
+                      background: '#131825',
+                      borderRadius: '8px',
+                      padding: '12px',
+                      fontSize: '12px',
+                      color: '#bbb',
+                      lineHeight: '1.6',
+                      maxHeight: '300px',
+                      overflowY: 'auto',
+                      whiteSpace: 'pre-wrap',
+                    }}>
+                      {resumoIA.recommendations}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Stats */}
         <div style={{ 
