@@ -19,6 +19,11 @@ export default defineConfig({
           });
         },
       },
+      // Proxy uploads para o backend Express (que faz fallback para a VM)
+      '/uploads': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
     },
   },
 })

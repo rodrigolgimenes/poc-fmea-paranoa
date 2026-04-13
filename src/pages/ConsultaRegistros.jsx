@@ -5,10 +5,248 @@ import {
   buscarEventosPorEtiqueta,
   buscarResumoKgraph,
   enviarFeedbackUtil,
+  marcarFeedbackUtil,
+  desmarcarFeedbackUtil,
+  consultarFeedbackBatch,
   atualizarTranscricao, 
   excluirEvento, 
   transcreverRetroativo 
 } from '../services/diarioRefugoService';
+
+// Normaliza arquivo_url absoluta para path relativo (/uploads/...)
+// Para que o servidor local possa servir ou fazer proxy para a VM
+function normalizeMediaUrl(url) {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.pathname; // ex: /uploads/fotos/FOTO_123.jpg
+  } catch {
+    return url; // já é relativo
+  }
+}
+
+// Renderiza texto markdown da API como elementos React formatados
+function RenderedMarkdown({ text }) {
+  if (!text) return null;
+
+  const lines = text.split('\n');
+  const elements = [];
+  let listItems = [];
+  let listType = null;
+
+  // Regex via construtor para evitar conflito de backticks com JSX
+  const codeRe = new RegExp('^(.*?)' + '`' + '([^' + '`' + ']+)' + '`');
+  const boldRe = /^(.*?)\*\*([^*]+)\*\*/;
+
+  const flushList = () => {
+    if (listItems.length === 0) return;
+    const items = listItems.map((item, i) => (
+      <li key={i} style={{ marginBottom: '4px' }}>{formatInline(item)}</li>
+    ));
+    if (listType === 'ol') {
+      elements.push(<ol key={`list-${elements.length}`} style={{ margin: '8px 0', paddingLeft: '20px', color: '#ccc' }}>{items}</ol>);
+    } else {
+      elements.push(<ul key={`list-${elements.length}`} style={{ margin: '8px 0', paddingLeft: '20px', color: '#ccc' }}>{items}</ul>);
+    }
+    listItems = [];
+    listType = null;
+  };
+
+  const formatInline = (str) => {
+    const parts = [];
+    let remaining = str;
+    let key = 0;
+    while (remaining.length > 0) {
+      const codeMatch = remaining.match(codeRe);
+      const boldMatch = remaining.match(boldRe);
+      let match = null, type = null;
+      if (codeMatch && (!boldMatch || codeMatch.index <= boldMatch.index)) {
+        match = codeMatch; type = 'code';
+      } else if (boldMatch) {
+        match = boldMatch; type = 'bold';
+      }
+      if (match) {
+        if (match[1]) parts.push(<span key={key++}>{match[1]}</span>);
+        if (type === 'code') {
+          parts.push(
+            <code key={key++} style={{
+              background: '#2a2f3e', padding: '1px 6px', borderRadius: '4px',
+              fontSize: '11px', color: '#7eb8f7', fontFamily: 'monospace',
+            }}>{match[2]}</code>
+          );
+        } else {
+          parts.push(<strong key={key++} style={{ color: '#fff' }}>{match[2]}</strong>);
+        }
+        remaining = remaining.slice(match[0].length);
+      } else {
+        parts.push(<span key={key++}>{remaining}</span>);
+        remaining = '';
+      }
+    }
+    return parts;
+  };
+
+  // Detecta se uma linha é linha de tabela markdown: | algo | algo |
+  const isTableRow = (l) => l.trim().startsWith('|') && l.trim().endsWith('|') && l.includes('|');
+  const isSeparatorRow = (l) => /^\|[\s\-:|]+\|$/.test(l.trim());
+  const parseTableCells = (l) => l.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+
+  // Detecta bloco de dados brutos (dict/JSON longo)
+  const isRawDataLine = (l) => {
+    const t = l.trim();
+    return (t.startsWith('{') && t.length > 120) || (t.startsWith("{") && t.includes("'variables'"));
+  };
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Linha vazia
+    if (!trimmed) { flushList(); i++; continue; }
+
+    // ---- Tabela markdown ----
+    if (isTableRow(trimmed)) {
+      flushList();
+      const tableRows = [];
+      let hasHeader = false;
+      const startI = i;
+
+      // Coletar todas as linhas da tabela
+      while (i < lines.length && isTableRow(lines[i].trim())) {
+        const row = lines[i].trim();
+        if (isSeparatorRow(row)) {
+          hasHeader = true;
+          i++; continue;
+        }
+        tableRows.push(parseTableCells(row));
+        i++;
+      }
+
+      if (tableRows.length > 0) {
+        const headerRow = hasHeader ? tableRows[0] : null;
+        const bodyRows = hasHeader ? tableRows.slice(1) : tableRows;
+        const cellStyle = {
+          padding: '8px 10px', fontSize: '11px', borderBottom: '1px solid #2a2f3e',
+        };
+
+        elements.push(
+          <div key={`tbl-${startI}`} style={{
+            background: '#141825', border: '1px solid #2d3a5a', borderRadius: '8px',
+            overflow: 'auto', margin: '10px 0',
+          }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              {headerRow && (
+                <thead>
+                  <tr style={{ background: '#1e2540' }}>
+                    {headerRow.map((cell, ci) => (
+                      <th key={ci} style={{
+                        ...cellStyle, color: '#7eb8f7', fontWeight: '700',
+                        textAlign: 'left', fontSize: '10px', textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}>{formatInline(cell)}</th>
+                    ))}
+                  </tr>
+                </thead>
+              )}
+              <tbody>
+                {bodyRows.map((row, ri) => (
+                  <tr key={ri} style={{ background: ri % 2 === 0 ? '#141825' : '#181d30' }}>
+                    {row.map((cell, ci) => (
+                      <td key={ci} style={{ ...cellStyle, color: '#ccc' }}>
+                        {formatInline(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+      continue;
+    }
+
+    // ---- Bloco de dados brutos (JSON/dict) ----
+    if (isRawDataLine(trimmed)) {
+      flushList();
+      let rawBlock = '';
+      while (i < lines.length && lines[i].trim().length > 0) {
+        rawBlock += (rawBlock ? '\n' : '') + lines[i];
+        i++;
+      }
+      elements.push(
+        <div key={`raw-${i}`} style={{
+          background: '#0d1117', border: '1px solid #2d3a5a', borderRadius: '8px',
+          padding: '12px', margin: '10px 0', maxHeight: '200px', overflowY: 'auto',
+          overflowX: 'auto',
+        }}>
+          <pre style={{
+            margin: 0, fontSize: '10px', color: '#888', fontFamily: 'monospace',
+            whiteSpace: 'pre-wrap', wordBreak: 'break-all', lineHeight: '1.5',
+          }}>{rawBlock}</pre>
+        </div>
+      );
+      continue;
+    }
+
+    // ---- Separador somente tracos ----
+    if (/^[-|]+$/.test(trimmed) || /^-{3,}$/.test(trimmed)) {
+      flushList();
+      elements.push(<hr key={`hr-${i}`} style={{ border: 'none', borderTop: '1px solid #2d3a5a', margin: '12px 0' }} />);
+      i++; continue;
+    }
+
+    // ---- Heading ----
+    const headingMatch = trimmed.match(/^(#{1,3})\s+(.*)/);
+    if (headingMatch) {
+      flushList();
+      const level = headingMatch[1].length;
+      const fontSize = level === 1 ? '15px' : level === 2 ? '13px' : '12px';
+      elements.push(
+        <div key={`h-${i}`} style={{
+          fontSize, fontWeight: '700', color: '#7eb8f7',
+          marginTop: '14px', marginBottom: '6px',
+          borderBottom: level <= 2 ? '1px solid #2d3a5a' : 'none',
+          paddingBottom: level <= 2 ? '6px' : '0',
+        }}>
+          {formatInline(headingMatch[2].replace(/[\u2705\u2757\u26a0\ufe0f\u2714\u274c\ud83d\udfe2\ud83d\udfe1\ud83d\udd34]/gu, '').trim())}
+        </div>
+      );
+      i++; continue;
+    }
+
+    // ---- Lista não-ordenada ----
+    const ulMatch = trimmed.match(/^[-*]\s+(.*)/);
+    if (ulMatch) {
+      if (listType === 'ol') flushList();
+      listType = 'ul';
+      listItems.push(ulMatch[1]);
+      i++; continue;
+    }
+
+    // ---- Lista ordenada ----
+    const olMatch = trimmed.match(/^\d+\.\s+(.*)/);
+    if (olMatch) {
+      if (listType === 'ul') flushList();
+      listType = 'ol';
+      listItems.push(olMatch[1]);
+      i++; continue;
+    }
+
+    // ---- Parágrafo normal ----
+    flushList();
+    elements.push(
+      <p key={`p-${i}`} style={{ margin: '6px 0', color: '#ccc', lineHeight: '1.6' }}>
+        {formatInline(trimmed)}
+      </p>
+    );
+    i++;
+  }
+  flushList();
+
+  return <>{elements}</>;
+}
 
 // Audio player component
 function AudioPlayer({ url, label }) {
@@ -65,7 +303,7 @@ function AudioPlayer({ url, label }) {
       borderRadius: '8px',
       marginTop: '8px',
     }}>
-      <audio ref={audioRef} src={url} preload="metadata" />
+      <audio ref={audioRef} src={normalizeMediaUrl(url)} preload="metadata" />
       <button 
         onClick={togglePlay}
         style={{
@@ -96,9 +334,10 @@ function AudioPlayer({ url, label }) {
 }
 
 // Single event card within an etiqueta group
-function EventoItem({ evento, isFirst, onChanged, queryTag, diarioTag }) {
-  const [feedbackSent, setFeedbackSent] = useState(false);
+function EventoItem({ evento, isFirst, onChanged, queryTag, diarioTag, initialFeedback }) {
+  const [isUseful, setIsUseful] = useState(initialFeedback || false);
   const [sendingFeedback, setSendingFeedback] = useState(false);
+  const [fotoFullscreen, setFotoFullscreen] = useState(false);
   const [expanded, setExpanded] = useState(isFirst);
   const [editDet, setEditDet] = useState(false);
   const [editObs, setEditObs] = useState(false);
@@ -233,12 +472,49 @@ function EventoItem({ evento, isFirst, onChanged, queryTag, diarioTag }) {
             {/* Observação */}
             <div>
               <div style={{ 
-                fontSize: '13px', 
-                fontWeight: '600', 
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
                 marginBottom: '6px',
-                color: '#f5a623',
               }}>
-                💬 Observações / Diagnóstico
+                <div style={{ 
+                  fontSize: '13px', 
+                  fontWeight: '600', 
+                  color: '#f5a623',
+                }}>
+                  💬 Observações / Diagnóstico
+                </div>
+                <button
+                  disabled={sendingFeedback}
+                  onClick={async () => {
+                    setSendingFeedback(true);
+                    if (isUseful) {
+                      await desmarcarFeedbackUtil(evento.evento_id);
+                      setIsUseful(false);
+                    } else {
+                      await marcarFeedbackUtil(evento.evento_id, queryTag || diarioTag, diarioTag);
+                      enviarFeedbackUtil(queryTag || diarioTag, diarioTag).catch(() => {});
+                      setIsUseful(true);
+                    }
+                    setSendingFeedback(false);
+                  }}
+                  style={{
+                    background: isUseful ? '#22c55e' : '#f5a623',
+                    color: isUseful ? '#fff' : '#1a1a1a',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 18px',
+                    cursor: sendingFeedback ? 'default' : 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '700',
+                    fontFamily: "'Exo', sans-serif",
+                    opacity: sendingFeedback ? 0.6 : 1,
+                    transition: 'all 0.2s ease',
+                    boxShadow: isUseful ? '0 0 8px rgba(34,197,94,0.4)' : '0 2px 6px rgba(245,166,35,0.3)',
+                  }}
+                >
+                  {sendingFeedback ? '⏳...' : isUseful ? '✅ Útil  ✔' : '👍 Útil'}
+                </button>
               </div>
               {!editObs ? (
                 <div style={{ 
@@ -278,40 +554,6 @@ function EventoItem({ evento, isFirst, onChanged, queryTag, diarioTag }) {
             </div>
           </div>
 
-          {/* Botão Útil - visível apenas no modo busca por etiqueta */}
-          {queryTag && (
-            <div style={{ 
-              marginBottom: '16px',
-              display: 'flex',
-              justifyContent: 'flex-end',
-            }}>
-              <button
-                disabled={feedbackSent || sendingFeedback}
-                onClick={async () => {
-                  setSendingFeedback(true);
-                  await enviarFeedbackUtil(queryTag, diarioTag);
-                  setSendingFeedback(false);
-                  setFeedbackSent(true);
-                }}
-                style={{
-                  background: feedbackSent ? '#2d5a2d' : '#1a3a1a',
-                  color: feedbackSent ? '#6fcf6f' : '#6fcf6f',
-                  border: '1px solid ' + (feedbackSent ? '#4a8a4a' : '#2d5a2d'),
-                  borderRadius: '8px',
-                  padding: '10px 20px',
-                  cursor: feedbackSent || sendingFeedback ? 'default' : 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '700',
-                  fontFamily: "'Exo', sans-serif",
-                  opacity: sendingFeedback ? 0.6 : 1,
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                {feedbackSent ? '✅ Útil!' : sendingFeedback ? '⏳ Enviando...' : '👍 Útil'}
-              </button>
-            </div>
-          )}
-
           {/* Photo */}
           {foto && (
             <div>
@@ -323,14 +565,76 @@ function EventoItem({ evento, isFirst, onChanged, queryTag, diarioTag }) {
               }}>
                 📷 Foto Evidência
               </div>
-              <img 
-                src={foto.arquivo_url} 
-                alt="Evidência"
+              <div
+                onClick={() => setFotoFullscreen(true)}
+                style={{ cursor: 'pointer', display: 'inline-block' }}
+              >
+                <img 
+                  src={normalizeMediaUrl(foto.arquivo_url)} 
+                  alt="Evidência"
+                  style={{
+                    width: '120px',
+                    height: '90px',
+                    objectFit: 'cover',
+                    borderRadius: '6px',
+                    border: '2px solid #3a3a3a',
+                  }}
+                />
+                <div style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
+                  🔍 Clique na foto para expandir
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Lightbox fullscreen da foto */}
+          {fotoFullscreen && foto && (
+            <div
+              onClick={() => setFotoFullscreen(false)}
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100vw',
+                height: '100vh',
+                background: 'rgba(0, 0, 0, 0.92)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 9999,
+                cursor: 'pointer',
+              }}
+            >
+              {/* Botão fechar */}
+              <button
+                onClick={(e) => { e.stopPropagation(); setFotoFullscreen(false); }}
                 style={{
-                  width: '100%',
-                  maxHeight: '200px',
-                  objectFit: 'cover',
-                  borderRadius: '8px',
+                  position: 'absolute',
+                  top: '16px',
+                  right: '16px',
+                  background: 'rgba(255,255,255,0.15)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '40px',
+                  height: '40px',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                ✕
+              </button>
+              <img
+                src={normalizeMediaUrl(foto.arquivo_url)}
+                alt="Evidência"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  width: '95vw',
+                  height: '90vh',
+                  objectFit: 'contain',
                 }}
               />
             </div>
@@ -355,9 +659,20 @@ function EventoItem({ evento, isFirst, onChanged, queryTag, diarioTag }) {
 
 // Grouped etiqueta card
 function EtiquetaCard({ etiqueta, eventos, onChanged, queryTag }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const [feedbackSet, setFeedbackSet] = useState(new Set());
   const count = eventos.length;
   const lastEvento = eventos[0]; // Most recent
+
+  // Carregar feedback em lote (na montagem e ao expandir)
+  useEffect(() => {
+    if (!expanded) return;
+    const ids = eventos.map(e => e.evento_id).filter(Boolean);
+    if (ids.length === 0) return;
+    consultarFeedbackBatch(ids).then(res => {
+      if (res.data) setFeedbackSet(new Set(res.data));
+    });
+  }, [expanded, eventos]);
 
   return (
     <div style={{
@@ -440,6 +755,7 @@ function EtiquetaCard({ etiqueta, eventos, onChanged, queryTag }) {
               onChanged={onChanged}
               queryTag={queryTag}
               diarioTag={etiqueta}
+              initialFeedback={feedbackSet.has(evento.evento_id)}
             />
           ))}
         </div>
@@ -811,48 +1127,108 @@ export default function ConsultaRegistros() {
             {!loadingResumo && resumoExpandido && resumoIA && (
               <div style={{ padding: '16px' }}>
 
-                {/* Alertas de parâmetros */}
+                {/* Tabela de parâmetros fora da faixa */}
                 {resumoIA.violations_recommended?.length > 0 && (
-                  <div style={{ marginBottom: '16px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: '700', color: '#f87171', marginBottom: '8px' }}>
-                      ⚠️ Parâmetros Fora da Faixa Ótima
+                  <div style={{ marginBottom: '20px' }}>
+                    <div style={{
+                      fontSize: '12px', fontWeight: '700', color: '#f87171',
+                      marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px',
+                    }}>
+                      <span style={{
+                        background: '#5a2020', borderRadius: '50%', width: '20px', height: '20px',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px',
+                      }}>⚠️</span>
+                      Parâmetros Fora da Faixa Ótima
                     </div>
-                    {resumoIA.violations_recommended.map((v, i) => (
-                      <div key={i} style={{
-                        background: '#2a1a1a',
-                        border: '1px solid #5a2020',
-                        borderRadius: '6px',
+                    <div style={{
+                      background: '#1a1020',
+                      border: '1px solid #3a2040',
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                    }}>
+                      {/* Cabeçalho da tabela */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: '2fr 1fr 1.5fr 80px',
+                        background: '#251530',
                         padding: '8px 12px',
-                        marginBottom: '6px',
-                        fontSize: '12px',
+                        fontSize: '10px',
+                        fontWeight: '700',
+                        color: '#888',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
                       }}>
-                        <span style={{ color: '#f87171', fontWeight: '600' }}>{v.parameter}</span>
-                        <span style={{ color: '#888' }}> — Atual: </span>
-                        <span style={{ color: '#fff' }}>{v.actual_value}</span>
-                        <span style={{ color: '#888' }}> | Faixa: [{v.expected_range?.[0]}, {v.expected_range?.[1]}]</span>
+                        <div>Parâmetro</div>
+                        <div style={{ textAlign: 'center' }}>Atual</div>
+                        <div style={{ textAlign: 'center' }}>Faixa Ótima</div>
+                        <div style={{ textAlign: 'center' }}>Status</div>
                       </div>
-                    ))}
+                      {/* Linhas */}
+                      {resumoIA.violations_recommended.map((v, i) => {
+                        const actual = parseFloat(v.actual_value);
+                        const min = v.expected_range?.[0];
+                        const max = v.expected_range?.[1];
+                        const isAbove = actual > max;
+                        return (
+                          <div key={i} style={{
+                            display: 'grid',
+                            gridTemplateColumns: '2fr 1fr 1.5fr 80px',
+                            padding: '10px 12px',
+                            fontSize: '12px',
+                            borderTop: '1px solid #2a1530',
+                            alignItems: 'center',
+                          }}>
+                            <div style={{ color: '#f87171', fontWeight: '600', fontFamily: 'monospace', fontSize: '11px' }}>
+                              {v.parameter}
+                            </div>
+                            <div style={{ textAlign: 'center', color: '#fff', fontWeight: '700' }}>
+                              {v.actual_value}
+                            </div>
+                            <div style={{ textAlign: 'center', color: '#888', fontSize: '11px' }}>
+                              {min != null && max != null ? `${Number(min).toFixed(2)} – ${Number(max).toFixed(2)}` : '-'}
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                              <span style={{
+                                background: '#5a2020',
+                                color: '#f87171',
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                fontSize: '10px',
+                                fontWeight: '700',
+                              }}>
+                                {isAbove ? '▲ ALTO' : '▼ BAIXO'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
-                {/* Recomendações IA */}
+                {/* Recomendações IA - renderizado com markdown */}
                 {resumoIA.recommendations && (
                   <div>
-                    <div style={{ fontSize: '12px', fontWeight: '700', color: '#7eb8f7', marginBottom: '8px' }}>
-                      📋 Análise e Recomendações
+                    <div style={{
+                      fontSize: '12px', fontWeight: '700', color: '#7eb8f7',
+                      marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px',
+                    }}>
+                      <span style={{
+                        background: '#1e2a50', borderRadius: '50%', width: '20px', height: '20px',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px',
+                      }}>📋</span>
+                      Análise e Recomendações
                     </div>
                     <div style={{
                       background: '#131825',
+                      border: '1px solid #1e2a50',
                       borderRadius: '8px',
-                      padding: '12px',
+                      padding: '16px',
                       fontSize: '12px',
-                      color: '#bbb',
-                      lineHeight: '1.6',
-                      maxHeight: '300px',
+                      maxHeight: '400px',
                       overflowY: 'auto',
-                      whiteSpace: 'pre-wrap',
                     }}>
-                      {resumoIA.recommendations}
+                      <RenderedMarkdown text={resumoIA.recommendations} />
                     </div>
                   </div>
                 )}

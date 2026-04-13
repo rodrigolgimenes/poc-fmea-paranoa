@@ -158,6 +158,36 @@ export async function enviarFeedbackUtil(queryTag, diarioTag) {
   });
 }
 
+// ==================== FEEDBACK PERSISTIDO ====================
+
+/**
+ * Marcar observação como útil (persiste no banco + auditoria)
+ */
+export async function marcarFeedbackUtil(eventoId, queryTag, diarioTag) {
+  return fetchApi('/api/diario-feedback', {
+    method: 'POST',
+    body: JSON.stringify({ evento_id: eventoId, query_tag: queryTag, diario_tag: diarioTag }),
+  });
+}
+
+/**
+ * Desmarcar observação como útil (remove do banco + auditoria)
+ */
+export async function desmarcarFeedbackUtil(eventoId) {
+  return fetchApi(`/api/diario-feedback/${eventoId}`, { method: 'DELETE' });
+}
+
+/**
+ * Consultar feedback em lote por evento_ids
+ */
+export async function consultarFeedbackBatch(eventoIds) {
+  if (!eventoIds?.length) return { data: [], error: null };
+  return fetchApi('/api/diario-feedback/batch', {
+    method: 'POST',
+    body: JSON.stringify({ evento_ids: eventoIds }),
+  });
+}
+
 /**
  * Atualiza transcrições do evento
  */
@@ -278,6 +308,9 @@ export default {
   buscarEventosPorEtiqueta,
   buscarResumoKgraph,
   enviarFeedbackUtil,
+  marcarFeedbackUtil,
+  desmarcarFeedbackUtil,
+  consultarFeedbackBatch,
   atualizarTranscricao,
   finalizarEvento,
   excluirEvento,

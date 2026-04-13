@@ -80,8 +80,35 @@ function getExtFromMime(mime) {
 app.use(cors());
 app.use(express.json());
 
-// Servir arquivos de upload estaticamente
+// Servir arquivos de upload estaticamente (local primeiro)
 app.use('/uploads', express.static(UPLOAD_PATH));
+
+// Fallback: proxy para VM/produção quando arquivo não existe localmente
+const UPLOAD_PROXY_URL = process.env.UPLOAD_PROXY_URL || '';
+app.use('/uploads', async (req, res) => {
+  if (!UPLOAD_PROXY_URL) {
+    return res.status(404).send('Arquivo não encontrado');
+  }
+
+  const vmUrl = `${UPLOAD_PROXY_URL}${req.path}`;
+  console.log(`[Upload Proxy] Arquivo local não encontrado, buscando da VM: ${vmUrl}`);
+
+  try {
+    const vmResponse = await fetch(vmUrl);
+    if (!vmResponse.ok) {
+      return res.status(404).send('Arquivo não encontrado na VM');
+    }
+
+    const contentType = vmResponse.headers.get('content-type');
+    if (contentType) res.set('Content-Type', contentType);
+
+    const buffer = await vmResponse.arrayBuffer();
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    console.error(`[Upload Proxy] Erro ao buscar da VM: ${err.message}`);
+    res.status(502).send('Erro ao buscar arquivo da VM');
+  }
+});
 
 // Configuração do SQL Server
 const sqlConfig = {
@@ -646,6 +673,171 @@ app.delete('/api/diario-evento/:eventoId', async (req, res) => {
     res.json({ data: { deleted: true, evento_id: eventoId }, error: null });
   } catch (error) {
     console.error('[API] Erro ao excluir evento:', error.message);
+    res.status(500).json({ data: null, error: { message: error.message } });
+  }
+});
+
+// ==================== FEEDBACK "ÚTIL" (persistido + auditado) ====================
+
+// Auto-criar tabelas de feedback se não existirem
+async function ensureFeedbackTables() {
+  try {
+    const p = await getPool();
+    await p.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='dw_diariobordo_feedback_util' AND xtype='U')
+      CREATE TABLE dw_diariobordo_feedback_util (
+        feedback_id UNIQUEIDENTIFIER DEFAULT NEWID() PRIMARY KEY,
+        evento_id UNIQUEIDENTIFIER NOT NULL,
+        query_tag VARCHAR(50),
+        diario_tag VARCHAR(50) NOT NULL,
+        created_at DATETIME DEFAULT GETDATE()
+      )
+    `);
+    await p.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='dw_diariobordo_feedback_audit' AND xtype='U')
+      CREATE TABLE dw_diariobordo_feedback_audit (
+        audit_id UNIQUEIDENTIFIER DEFAULT NEWID() PRIMARY KEY,
+        evento_id UNIQUEIDENTIFIER NOT NULL,
+        query_tag VARCHAR(50),
+        diario_tag VARCHAR(50) NOT NULL,
+        action VARCHAR(20) NOT NULL,
+        created_at DATETIME DEFAULT GETDATE()
+      )
+    `);
+    console.log('[Feedback] Tabelas verificadas/criadas.');
+  } catch (err) {
+    console.error('[Feedback] Erro ao criar tabelas:', err.message);
+  }
+}
+// Chamar ao importar (não bloqueia startup)
+ensureFeedbackTables();
+
+// Consultar se evento já tem feedback
+app.get('/api/diario-feedback/evento/:eventoId', async (req, res) => {
+  try {
+    const { eventoId } = req.params;
+    const pool = await getPool();
+    const result = await pool.request()
+      .input('evento_id', sql.UniqueIdentifier, eventoId)
+      .query('SELECT feedback_id, query_tag, diario_tag, created_at FROM dw_diariobordo_feedback_util WHERE evento_id = @evento_id');
+    
+    res.json({ data: result.recordset[0] || null, error: null });
+  } catch (error) {
+    console.error('[Feedback] Erro ao consultar:', error.message);
+    res.status(500).json({ data: null, error: { message: error.message } });
+  }
+});
+
+// Consultar feedback em lote (por lista de evento_ids)
+app.post('/api/diario-feedback/batch', async (req, res) => {
+  try {
+    const { evento_ids } = req.body;
+    if (!evento_ids?.length) return res.json({ data: [], error: null });
+
+    const pool = await getPool();
+    // Criar TVP ou usar IN clause (limitado, mas ok para POC)
+    const placeholders = evento_ids.map((_, i) => `@id${i}`).join(',');
+    const request = pool.request();
+    evento_ids.forEach((id, i) => request.input(`id${i}`, sql.UniqueIdentifier, id));
+
+    const result = await request.query(
+      `SELECT evento_id FROM dw_diariobordo_feedback_util WHERE evento_id IN (${placeholders})`
+    );
+
+    const feedbackSet = result.recordset.map(r => r.evento_id);
+    res.json({ data: feedbackSet, error: null });
+  } catch (error) {
+    console.error('[Feedback] Erro batch:', error.message);
+    res.status(500).json({ data: null, error: { message: error.message } });
+  }
+});
+
+// Marcar como útil
+app.post('/api/diario-feedback', async (req, res) => {
+  try {
+    const { evento_id, query_tag, diario_tag } = req.body;
+    if (!evento_id || !diario_tag) {
+      return res.status(400).json({ data: null, error: { message: 'evento_id e diario_tag são obrigatórios' } });
+    }
+
+    const pool = await getPool();
+
+    // Verificar se já existe
+    const existing = await pool.request()
+      .input('evento_id', sql.UniqueIdentifier, evento_id)
+      .query('SELECT feedback_id FROM dw_diariobordo_feedback_util WHERE evento_id = @evento_id');
+    
+    if (existing.recordset.length > 0) {
+      return res.json({ data: existing.recordset[0], error: null });
+    }
+
+    // Inserir feedback
+    const result = await pool.request()
+      .input('evento_id', sql.UniqueIdentifier, evento_id)
+      .input('query_tag', sql.VarChar, query_tag || null)
+      .input('diario_tag', sql.VarChar, diario_tag)
+      .query(`
+        INSERT INTO dw_diariobordo_feedback_util (evento_id, query_tag, diario_tag)
+        OUTPUT INSERTED.*
+        VALUES (@evento_id, @query_tag, @diario_tag)
+      `);
+
+    // Auditoria
+    await pool.request()
+      .input('evento_id', sql.UniqueIdentifier, evento_id)
+      .input('query_tag', sql.VarChar, query_tag || null)
+      .input('diario_tag', sql.VarChar, diario_tag)
+      .input('action', sql.VarChar, 'MARKED_USEFUL')
+      .query(`
+        INSERT INTO dw_diariobordo_feedback_audit (evento_id, query_tag, diario_tag, action)
+        VALUES (@evento_id, @query_tag, @diario_tag, @action)
+      `);
+
+    console.log(`[Feedback] Marcado útil: evento=${evento_id}, diario_tag=${diario_tag}`);
+    res.json({ data: result.recordset[0], error: null });
+  } catch (error) {
+    console.error('[Feedback] Erro ao marcar:', error.message);
+    res.status(500).json({ data: null, error: { message: error.message } });
+  }
+});
+
+// Desmarcar útil
+app.delete('/api/diario-feedback/:eventoId', async (req, res) => {
+  try {
+    const { eventoId } = req.params;
+    const pool = await getPool();
+
+    // Buscar dados para auditoria antes de deletar
+    const existing = await pool.request()
+      .input('evento_id', sql.UniqueIdentifier, eventoId)
+      .query('SELECT * FROM dw_diariobordo_feedback_util WHERE evento_id = @evento_id');
+
+    if (existing.recordset.length === 0) {
+      return res.json({ data: { deleted: false }, error: null });
+    }
+
+    const fb = existing.recordset[0];
+
+    // Deletar
+    await pool.request()
+      .input('evento_id', sql.UniqueIdentifier, eventoId)
+      .query('DELETE FROM dw_diariobordo_feedback_util WHERE evento_id = @evento_id');
+
+    // Auditoria
+    await pool.request()
+      .input('evento_id', sql.UniqueIdentifier, eventoId)
+      .input('query_tag', sql.VarChar, fb.query_tag)
+      .input('diario_tag', sql.VarChar, fb.diario_tag)
+      .input('action', sql.VarChar, 'UNMARKED_USEFUL')
+      .query(`
+        INSERT INTO dw_diariobordo_feedback_audit (evento_id, query_tag, diario_tag, action)
+        VALUES (@evento_id, @query_tag, @diario_tag, @action)
+      `);
+
+    console.log(`[Feedback] Desmarcado: evento=${eventoId}`);
+    res.json({ data: { deleted: true, evento_id: eventoId }, error: null });
+  } catch (error) {
+    console.error('[Feedback] Erro ao desmarcar:', error.message);
     res.status(500).json({ data: null, error: { message: error.message } });
   }
 });

@@ -16,6 +16,9 @@ export const buscarEventosPorProduto = api.buscarEventosPorProduto;
 export const buscarEventosPorEtiqueta = api.buscarEventosPorEtiqueta;
 export const buscarResumoKgraph = api.buscarResumoKgraph;
 export const enviarFeedbackUtil = api.enviarFeedbackUtil;
+export const marcarFeedbackUtil = api.marcarFeedbackUtil;
+export const desmarcarFeedbackUtil = api.desmarcarFeedbackUtil;
+export const consultarFeedbackBatch = api.consultarFeedbackBatch;
 export const atualizarTranscricao = api.atualizarTranscricao;
 
 /**
@@ -42,6 +45,9 @@ export default {
   buscarEventosPorEtiqueta,
   buscarResumoKgraph,
   enviarFeedbackUtil,
+  marcarFeedbackUtil,
+  desmarcarFeedbackUtil,
+  consultarFeedbackBatch,
   atualizarTranscricao,
   excluirEvento,
   transcreverRetroativo,
