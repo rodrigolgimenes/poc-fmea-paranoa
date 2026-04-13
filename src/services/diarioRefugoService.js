@@ -13,7 +13,9 @@ export const finalizarEvento = api.finalizarEvento;
 export const buscarEventoPorId = api.buscarEventoPorId;
 export const listarEventosRecentes = api.listarEventosRecentes;
 export const buscarEventosPorProduto = api.buscarEventosPorProduto;
+export const buscarEventosPorEtiqueta = api.buscarEventosPorEtiqueta;
 export const buscarResumoKgraph = api.buscarResumoKgraph;
+export const enviarFeedbackUtil = api.enviarFeedbackUtil;
 export const atualizarTranscricao = api.atualizarTranscricao;
 
 /**
@@ -37,7 +39,9 @@ export default {
   buscarEventoPorId,
   listarEventosRecentes,
   buscarEventosPorProduto,
+  buscarEventosPorEtiqueta,
   buscarResumoKgraph,
+  enviarFeedbackUtil,
   atualizarTranscricao,
   excluirEvento,
   transcreverRetroativo,

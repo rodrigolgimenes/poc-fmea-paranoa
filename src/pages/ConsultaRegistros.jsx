@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   listarEventosRecentes,
-  buscarEventosPorProduto,
+  buscarEventosPorEtiqueta,
   buscarResumoKgraph,
+  enviarFeedbackUtil,
   atualizarTranscricao, 
   excluirEvento, 
   transcreverRetroativo 
@@ -95,7 +96,9 @@ function AudioPlayer({ url, label }) {
 }
 
 // Single event card within an etiqueta group
-function EventoItem({ evento, isFirst, onChanged }) {
+function EventoItem({ evento, isFirst, onChanged, queryTag, diarioTag }) {
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [sendingFeedback, setSendingFeedback] = useState(false);
   const [expanded, setExpanded] = useState(isFirst);
   const [editDet, setEditDet] = useState(false);
   const [editObs, setEditObs] = useState(false);
@@ -275,6 +278,40 @@ function EventoItem({ evento, isFirst, onChanged }) {
             </div>
           </div>
 
+          {/* Botão Útil - visível apenas no modo busca por etiqueta */}
+          {queryTag && (
+            <div style={{ 
+              marginBottom: '16px',
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}>
+              <button
+                disabled={feedbackSent || sendingFeedback}
+                onClick={async () => {
+                  setSendingFeedback(true);
+                  await enviarFeedbackUtil(queryTag, diarioTag);
+                  setSendingFeedback(false);
+                  setFeedbackSent(true);
+                }}
+                style={{
+                  background: feedbackSent ? '#2d5a2d' : '#1a3a1a',
+                  color: feedbackSent ? '#6fcf6f' : '#6fcf6f',
+                  border: '1px solid ' + (feedbackSent ? '#4a8a4a' : '#2d5a2d'),
+                  borderRadius: '8px',
+                  padding: '10px 20px',
+                  cursor: feedbackSent || sendingFeedback ? 'default' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '700',
+                  fontFamily: "'Exo', sans-serif",
+                  opacity: sendingFeedback ? 0.6 : 1,
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                {feedbackSent ? '✅ Útil!' : sendingFeedback ? '⏳ Enviando...' : '👍 Útil'}
+              </button>
+            </div>
+          )}
+
           {/* Photo */}
           {foto && (
             <div>
@@ -317,7 +354,7 @@ function EventoItem({ evento, isFirst, onChanged }) {
 }
 
 // Grouped etiqueta card
-function EtiquetaCard({ etiqueta, eventos, onChanged }) {
+function EtiquetaCard({ etiqueta, eventos, onChanged, queryTag }) {
   const [expanded, setExpanded] = useState(false);
   const count = eventos.length;
   const lastEvento = eventos[0]; // Most recent
@@ -401,6 +438,8 @@ function EtiquetaCard({ etiqueta, eventos, onChanged }) {
               evento={evento} 
               isFirst={index === 0}
               onChanged={onChanged}
+              queryTag={queryTag}
+              diarioTag={etiqueta}
             />
           ))}
         </div>
@@ -415,9 +454,9 @@ export default function ConsultaRegistros() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filtroEtiqueta, setFiltroEtiqueta] = useState('');
-  const [modoBusca, setModoBusca] = useState('recentes'); // 'recentes' | 'produto'
-  const [codProduto, setCodProduto] = useState('');
-  const [codProdutoBuscado, setCodProdutoBuscado] = useState('');
+  const [modoBusca, setModoBusca] = useState('recentes'); // 'recentes' | 'etiqueta'
+  const [codEtiqueta, setCodEtiqueta] = useState('');
+  const [etiquetaBuscada, setEtiquetaBuscada] = useState('');
   const [resumoIA, setResumoIA] = useState(null);
   const [loadingResumo, setLoadingResumo] = useState(false);
   const [resumoExpandido, setResumoExpandido] = useState(false);
@@ -443,22 +482,22 @@ export default function ConsultaRegistros() {
     }
   };
 
-  const buscarPorProduto = async () => {
-    if (!codProduto.trim()) return;
-    const pn = codProduto.trim();
+  const buscarPorEtiqueta = async () => {
+    if (!codEtiqueta.trim()) return;
+    const tag = codEtiqueta.trim();
     setIsLoading(true);
     setError(null);
     setResumoIA(null);
     setResumoExpandido(false);
-    setCodProdutoBuscado(pn);
+    setEtiquetaBuscada(tag);
 
     try {
       // Busca local e Kgraph em paralelo
       const [localResult, kgraphResult] = await Promise.all([
-        buscarEventosPorProduto(pn),
+        buscarEventosPorEtiqueta(tag),
         (async () => {
           setLoadingResumo(true);
-          const r = await buscarResumoKgraph(pn);
+          const r = await buscarResumoKgraph(tag);
           setLoadingResumo(false);
           return r;
         })(),
@@ -467,15 +506,15 @@ export default function ConsultaRegistros() {
       if (localResult.error) throw localResult.error;
       setRegistros(localResult.data || []);
       if (!localResult.data || localResult.data.length === 0) {
-        setError(`Nenhum registro local encontrado para o produto "${pn}"`);
+        setError(`Nenhum registro local encontrado para a etiqueta "${tag}"`);
       }
 
       if (!kgraphResult.error && kgraphResult.data) {
         setResumoIA(kgraphResult.data);
       }
     } catch (err) {
-      console.error('Erro ao buscar por produto:', err);
-      setError('Erro ao buscar registros do produto');
+      console.error('Erro ao buscar por etiqueta:', err);
+      setError('Erro ao buscar registros da etiqueta');
     } finally {
       setIsLoading(false);
       setLoadingResumo(false);
@@ -588,7 +627,7 @@ export default function ConsultaRegistros() {
               📋 Consulta de Registros
             </h2>
             <button 
-              onClick={modoBusca === 'recentes' ? loadRegistros : buscarPorProduto}
+              onClick={modoBusca === 'recentes' ? loadRegistros : buscarPorEtiqueta}
               disabled={isLoading}
               style={{
                 padding: '6px 12px',
@@ -607,7 +646,7 @@ export default function ConsultaRegistros() {
 
           {/* Modo de busca toggle */}
           <div style={{ display: 'flex', gap: '6px' }}>
-            {['recentes', 'produto'].map(modo => (
+            {['recentes', 'etiqueta'].map(modo => (
               <button
                 key={modo}
                 onClick={() => {
@@ -615,7 +654,7 @@ export default function ConsultaRegistros() {
                   setRegistros([]);
                   setError(null);
                   setFiltroEtiqueta('');
-                  setCodProdutoBuscado('');
+                  setEtiquetaBuscada('');
                 }}
                 style={{
                   flex: 1,
@@ -630,7 +669,7 @@ export default function ConsultaRegistros() {
                   fontFamily: "'Exo', sans-serif",
                 }}
               >
-                {modo === 'recentes' ? '🕐 Recentes' : '🔎 Por Produto'}
+                {modo === 'recentes' ? '🕐 Recentes' : '🔎 Por Etiqueta'}
               </button>
             ))}
           </div>
@@ -654,15 +693,15 @@ export default function ConsultaRegistros() {
             />
           )}
 
-          {/* Busca por produto */}
-          {modoBusca === 'produto' && (
+          {/* Busca por etiqueta */}
+          {modoBusca === 'etiqueta' && (
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="text"
-                placeholder="Código do produto (ex: 12345)"
-                value={codProduto}
-                onChange={(e) => setCodProduto(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && buscarPorProduto()}
+                placeholder="Etiqueta (ex: 0016645564)"
+                value={codEtiqueta}
+                onChange={(e) => setCodEtiqueta(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && buscarPorEtiqueta()}
                 style={{
                   flex: 1,
                   padding: '10px 14px',
@@ -675,15 +714,15 @@ export default function ConsultaRegistros() {
                 }}
               />
               <button
-                onClick={buscarPorProduto}
-                disabled={isLoading || !codProduto.trim()}
+                onClick={buscarPorEtiqueta}
+                disabled={isLoading || !codEtiqueta.trim()}
                 style={{
                   padding: '10px 18px',
-                  background: codProduto.trim() ? '#f5a623' : '#3a3a3a',
-                  color: codProduto.trim() ? '#1a1a1a' : '#555',
+                  background: codEtiqueta.trim() ? '#f5a623' : '#3a3a3a',
+                  color: codEtiqueta.trim() ? '#1a1a1a' : '#555',
                   border: 'none',
                   borderRadius: '8px',
-                  cursor: codProduto.trim() ? 'pointer' : 'not-allowed',
+                  cursor: codEtiqueta.trim() ? 'pointer' : 'not-allowed',
                   fontWeight: '700',
                   fontSize: '13px',
                   fontFamily: "'Exo', sans-serif",
@@ -695,8 +734,8 @@ export default function ConsultaRegistros() {
             </div>
           )}
 
-          {/* Indicador de produto sendo exibido */}
-          {modoBusca === 'produto' && codProdutoBuscado && !isLoading && (
+          {/* Indicador de etiqueta sendo exibida */}
+          {modoBusca === 'etiqueta' && etiquetaBuscada && !isLoading && (
             <div style={{
               padding: '8px 12px',
               background: '#1a2a1a',
@@ -705,13 +744,13 @@ export default function ConsultaRegistros() {
               fontSize: '12px',
               color: '#6fcf6f',
             }}>
-              Exibindo histórico do produto: <strong>{codProdutoBuscado}</strong>
+              Exibindo histórico da etiqueta: <strong>{etiquetaBuscada}</strong>
             </div>
           )}
         </div>
 
         {/* ===== CARD RESUMO IA ===== */}
-        {modoBusca === 'produto' && (loadingResumo || resumoIA) && (
+        {modoBusca === 'etiqueta' && (loadingResumo || resumoIA) && (
           <div style={{
             background: '#1a1f2e',
             border: '1px solid #2d3a5a',
@@ -738,7 +777,7 @@ export default function ConsultaRegistros() {
                     Resumo IA — Kgraph
                   </div>
                   <div style={{ fontSize: '11px', color: '#555' }}>
-                    {loadingResumo ? 'Carregando análise...' : `Produto: ${resumoIA?.part_number || codProdutoBuscado}`}
+                    {loadingResumo ? 'Carregando análise...' : `Etiqueta: ${resumoIA?.tag || etiquetaBuscada}`}
                   </div>
                 </div>
               </div>
@@ -924,6 +963,7 @@ export default function ConsultaRegistros() {
             etiqueta={etiqueta}
             eventos={groupedRegistros[etiqueta]}
             onChanged={loadRegistros}
+            queryTag={modoBusca === 'etiqueta' ? etiquetaBuscada : null}
           />
         ))}
       </div>

@@ -446,6 +446,38 @@ app.get('/api/diario-eventos/produto/:codProduto', async (req, res) => {
   }
 });
 
+// Buscar histórico do diário por etiqueta
+app.get('/api/diario-eventos/etiqueta/:etiqueta', async (req, res) => {
+  try {
+    const { etiqueta } = req.params;
+    const pool = await getPool();
+
+    const eventos = await pool.request()
+      .input('etiqueta', sql.VarChar, etiqueta)
+      .query(`
+        SELECT *
+        FROM dw_diariobordo_refugo_evento
+        WHERE etiqueta = @etiqueta
+        ORDER BY created_at DESC
+      `);
+
+    // Para cada evento, buscar mídias
+    const eventosComMidias = await Promise.all(
+      eventos.recordset.map(async (evento) => {
+        const midias = await pool.request()
+          .input('evento_id', sql.UniqueIdentifier, evento.evento_id)
+          .query('SELECT * FROM dw_diariobordo_refugo_midia WHERE evento_id = @evento_id');
+        return { ...evento, midias: midias.recordset };
+      })
+    );
+
+    res.json({ data: eventosComMidias, error: null });
+  } catch (error) {
+    console.error('[API] Erro ao buscar eventos por etiqueta:', error.message);
+    res.status(500).json({ data: null, error: { message: error.message } });
+  }
+});
+
 // Upload de mídia (com arquivo)
 app.post('/api/upload-midia', upload.single('file'), async (req, res) => {
   try {
@@ -623,15 +655,15 @@ app.delete('/api/diario-evento/:eventoId', async (req, res) => {
 // Proxy para a API Kgraph - mantém o token server-side
 app.post('/api/kgraph/taghistory', async (req, res) => {
   try {
-    const { part_number } = req.body;
-    if (!part_number) {
-      return res.status(400).json({ data: null, error: { message: 'part_number é obrigatório' } });
+    const { tag } = req.body;
+    if (!tag) {
+      return res.status(400).json({ data: null, error: { message: 'tag é obrigatório' } });
     }
 
     const KGRAPH_TOKEN = process.env.KGRAPH_TOKEN || 'dev-token-paranoa-test-ensaio';
     const KGRAPH_URL = 'https://kgraph.anjuna-tech.com/tag-alert/taghistory';
 
-    console.log(`[Kgraph] Buscando part_number=${part_number}`);
+    console.log(`[Kgraph] Buscando tag=${tag}`);
 
     const kgraphResponse = await fetch(KGRAPH_URL, {
       method: 'POST',
@@ -639,13 +671,13 @@ app.post('/api/kgraph/taghistory', async (req, res) => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${KGRAPH_TOKEN}`,
       },
-      body: JSON.stringify({ part_number }),
+      body: JSON.stringify({ tag }),
     });
 
     const kgraphData = await kgraphResponse.json();
 
     if (!kgraphResponse.ok || kgraphData.status === 'INVALID_TAG') {
-      return res.status(404).json({ data: null, error: { message: `Produto não encontrado na Kgraph: ${part_number}` } });
+      return res.status(404).json({ data: null, error: { message: `Etiqueta não encontrada na Kgraph: ${tag}` } });
     }
 
     res.json({ data: kgraphData, error: null });
@@ -655,27 +687,65 @@ app.post('/api/kgraph/taghistory', async (req, res) => {
   }
 });
 
-// ==================== INICIAR SERVIDOR ====================
+// Proxy para feedback "Útil" do Kgraph
+app.post('/api/kgraph/feedback', async (req, res) => {
+  try {
+    const { query_tag, diario_tag } = req.body;
+    if (!query_tag || !diario_tag) {
+      return res.status(400).json({ data: null, error: { message: 'query_tag e diario_tag são obrigatórios' } });
+    }
 
-app.listen(PORT, () => {
-  console.log(`
+    const KGRAPH_FEEDBACK_URL = process.env.KGRAPH_FEEDBACK_URL || 'https://kgraph.anjuna-tech.com/tag-alert/feedback';
+
+    console.log(`[Kgraph Feedback] query_tag=${query_tag}, diario_tag=${diario_tag}`);
+
+    const feedbackResponse = await fetch(KGRAPH_FEEDBACK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query_tag, diario_tag }),
+    });
+
+    const feedbackData = await feedbackResponse.json().catch(() => ({}));
+
+    if (!feedbackResponse.ok) {
+      return res.status(feedbackResponse.status).json({ data: null, error: { message: 'Erro ao enviar feedback' } });
+    }
+
+    res.json({ data: feedbackData, error: null });
+  } catch (error) {
+    console.error('[Kgraph Feedback] Erro:', error.message);
+    res.status(500).json({ data: null, error: { message: error.message } });
+  }
+});
+
+// ==================== EXPORTAR APP (para testes) ====================
+export { app, getPool };
+
+// ==================== INICIAR SERVIDOR ====================
+// Só inicia o servidor quando executado diretamente (não quando importado por testes)
+const isMainModule = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+
+if (isMainModule) {
+  app.listen(PORT, () => {
+    console.log(`
 ╔════════════════════════════════════════════╗
 ║   🚀 API Server rodando na porta ${PORT}      ║
 ║   📡 http://localhost:${PORT}/api/health      ║
 ╚════════════════════════════════════════════╝
-  `);
-  
-  // Testar conexão ao iniciar
-  getPool().catch(err => {
-    console.error('⚠️  Falha na conexão inicial:', err.message);
+    `);
+    
+    // Testar conexão ao iniciar
+    getPool().catch(err => {
+      console.error('⚠️  Falha na conexão inicial:', err.message);
+    });
   });
-});
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('\n[Server] Encerrando...');
-  if (pool) {
-    await pool.close();
-  }
-  process.exit(0);
-});
+  // Graceful shutdown
+  process.on('SIGINT', async () => {
+    console.log('\n[Server] Encerrando...');
+    if (pool) {
+      await pool.close();
+    }
+    process.exit(0);
+  });
+}

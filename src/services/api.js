@@ -113,15 +113,15 @@ export async function listarEventosRecentes(limite = 100) {
 }
 
 /**
- * Busca resumo IA + histórico da Kgraph por part_number (proxy servidor)
+ * Busca resumo IA + histórico da Kgraph por etiqueta (proxy servidor)
  */
-export async function buscarResumoKgraph(partNumber) {
-  if (!partNumber?.trim()) {
-    return { data: null, error: { message: 'part_number inválido' } };
+export async function buscarResumoKgraph(tag) {
+  if (!tag?.trim()) {
+    return { data: null, error: { message: 'tag inválido' } };
   }
   return fetchApi('/api/kgraph/taghistory', {
     method: 'POST',
-    body: JSON.stringify({ part_number: partNumber.trim() }),
+    body: JSON.stringify({ tag: tag.trim() }),
   });
 }
 
@@ -133,6 +133,29 @@ export async function buscarEventosPorProduto(codProduto) {
     return { data: null, error: { message: 'Código do produto inválido' } };
   }
   return fetchApi(`/api/diario-eventos/produto/${encodeURIComponent(codProduto.trim())}`);
+}
+
+/**
+ * Busca histórico completo do diário por etiqueta
+ */
+export async function buscarEventosPorEtiqueta(etiqueta) {
+  if (!etiqueta?.trim()) {
+    return { data: null, error: { message: 'Etiqueta inválida' } };
+  }
+  return fetchApi(`/api/diario-eventos/etiqueta/${encodeURIComponent(etiqueta.trim())}`);
+}
+
+/**
+ * Envia feedback de "Útil" para o Kgraph
+ */
+export async function enviarFeedbackUtil(queryTag, diarioTag) {
+  if (!queryTag?.trim() || !diarioTag?.trim()) {
+    return { data: null, error: { message: 'query_tag e diario_tag são obrigatórios' } };
+  }
+  return fetchApi('/api/kgraph/feedback', {
+    method: 'POST',
+    body: JSON.stringify({ query_tag: queryTag.trim(), diario_tag: diarioTag.trim() }),
+  });
 }
 
 /**
@@ -252,7 +275,9 @@ export default {
   buscarEventoPorId,
   listarEventosRecentes,
   buscarEventosPorProduto,
+  buscarEventosPorEtiqueta,
   buscarResumoKgraph,
+  enviarFeedbackUtil,
   atualizarTranscricao,
   finalizarEvento,
   excluirEvento,
