@@ -473,8 +473,8 @@ function EventoItem({ evento, isFirst, onChanged, queryTag, diarioTag, initialFe
             <div>
               <div style={{ 
                 display: 'flex',
-                justifyContent: 'space-between',
                 alignItems: 'center',
+                gap: '10px',
                 marginBottom: '6px',
               }}>
                 <div style={{ 
@@ -499,18 +499,18 @@ function EventoItem({ evento, isFirst, onChanged, queryTag, diarioTag, initialFe
                     setSendingFeedback(false);
                   }}
                   style={{
-                    background: isUseful ? '#22c55e' : '#f5a623',
-                    color: isUseful ? '#fff' : '#1a1a1a',
-                    border: 'none',
+                    background: isUseful ? '#22c55e' : '#86efac',
+                    color: isUseful ? '#fff' : '#14532d',
+                    border: isUseful ? 'none' : '1px solid #4ade80',
                     borderRadius: '8px',
-                    padding: '8px 18px',
+                    padding: '6px 14px',
                     cursor: sendingFeedback ? 'default' : 'pointer',
-                    fontSize: '14px',
+                    fontSize: '13px',
                     fontWeight: '700',
                     fontFamily: "'Exo', sans-serif",
                     opacity: sendingFeedback ? 0.6 : 1,
                     transition: 'all 0.2s ease',
-                    boxShadow: isUseful ? '0 0 8px rgba(34,197,94,0.4)' : '0 2px 6px rgba(245,166,35,0.3)',
+                    boxShadow: isUseful ? '0 0 8px rgba(34,197,94,0.4)' : '0 0 8px rgba(74,222,128,0.25)',
                   }}
                 >
                   {sendingFeedback ? '⏳...' : isUseful ? '✅ Útil  ✔' : '👍 Útil'}
